@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Central de favoritos">
+  <meta name="theme-color" content="#040a0b">
+  <title>Favoritos | DSHGM</title>
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <script>
+    /* Aplica as preferências antes da primeira pintura (evita piscar a cor padrão). */
+    try {
+      var p = JSON.parse(localStorage.getItem('dashboard-preferencias')) || {}
+      var r = document.documentElement
+      if (p.destaque) r.dataset.accent = p.destaque
+      if (p.fundo) r.dataset.aurora = { animado: 'animada', estatico: 'estatica', desligado: 'desligada' }[p.fundo] || 'animada'
+      if (p.densidade) r.dataset.densidade = p.densidade
+    } catch (e) {}
+  </script>
+</head>
+
+<body>
+  <div class="aurora aurora-soft" aria-hidden="true">
+    <span class="a1"></span><span class="a2"></span><span class="a3"></span>
+  </div>
+
+  <!-- Menu lateral, conta e painel de perfil são injetados por src/modules/shell.js -->
+  <div class="app" data-page="favoritos">
+    <main class="page" id="favoritos">
+
+      <header class="page-header">
+        <a href="index.html" class="back-link">
+          <svg class="icon" aria-hidden="true"><use href="#i-arrow-left"></use></svg>
+          Voltar à dashboard
+        </a>
+        <p class="kicker">ATALHOS</p>
+        <h1>Central de favoritos</h1>
+        <p class="page-lead">Seus sites favoritos, organizados por categoria e a um clique de distância.</p>
+      </header>
+
+      <div class="page-toolbar">
+        <label class="search-field">
+          <svg class="icon" aria-hidden="true"><use href="#i-search"></use></svg>
+          <input id="fav-search" type="search" placeholder="Pesquisar favoritos ( / )" autocomplete="off" aria-label="Pesquisar favoritos">
+        </label>
+        <span class="spacer"></span>
+        <button class="btn btn-primary" id="fav-add" type="button">
+          <svg class="icon" aria-hidden="true"><use href="#i-plus"></use></svg>
+          Adicionar link
+        </button>
+      </div>
+
+      <div class="filters" id="fav-filters" role="group" aria-label="Filtrar por categoria"></div>
+
+      <section class="page-panel" aria-label="Lista de favoritos">
+        <div id="fav-list"></div>
+      </section>
+
+    </main>
+  </div>
+
+  <!-- Pop-up de cadastro/edição de favorito -->
+  <dialog class="modal" id="fav-dialog" aria-labelledby="fav-dialog-title">
+    <form class="modal-form" id="fav-form" novalidate>
+      <div class="modal-head">
+        <div>
+          <p class="kicker" id="fav-dialog-kicker">NOVO FAVORITO</p>
+          <h2 id="fav-dialog-title">Adicionar link</h2>
+        </div>
+        <button class="icon-btn" id="fav-cancel-x" type="button" aria-label="Fechar">
+          <svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg>
+        </button>
+      </div>
+
+      <label class="field">
+        Nome
+        <input id="fav-name" type="text" maxlength="60" autocomplete="off" placeholder="Ex.: MDN Web Docs">
+      </label>
+
+      <label class="field">
+        Endereço
+        <input id="fav-url" type="text" inputmode="url" autocomplete="off" placeholder="exemplo.com.br">
+      </label>
+
+      <label class="field">
+        Categoria
+        <select id="fav-category"></select>
+      </label>
+
+      <label class="field new-category" id="fav-new-category-field" hidden>
+        Nome da nova categoria
+        <input id="fav-new-category" type="text" maxlength="30" autocomplete="off" placeholder="Ex.: Trabalho">
+      </label>
+
+      <label class="switch-row">
+        <span>Mostrar nos atalhos da página inicial</span>
+        <input class="switch" id="fav-pinned" type="checkbox" role="switch" checked>
+      </label>
+
+      <p class="modal-error" id="fav-error" role="alert"></p>
+
+      <div class="modal-actions">
+        <button class="btn btn-danger" id="fav-delete" type="button" hidden>Excluir</button>
+        <span class="spacer"></span>
+        <button class="btn" id="fav-cancel" type="button">Cancelar</button>
+        <button class="btn btn-primary" type="submit">Salvar</button>
+      </div>
+    </form>
+  </dialog>
+
+  <script type="module" src="/src/pages/favoritos.js"></script>
+</body>
+</html>

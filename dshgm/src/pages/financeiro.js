@@ -1,0 +1,698 @@
+import '../styles/main.css'
+import '../styles/financeiro.css'
+
+import { icon } from '../modules/icons.js'
+import { iniciarShell, mostrarAviso } from '../modules/shell.js'
+import { baixarArquivo, gerarRelatorioFinanceiro, nomeArquivoFinanceiro } from '../modules/financeiro-pdf.js'
+
+iniciarShell({ pagina: 'financeiro' })
+
+const STORAGE_KEY = 'dashboard-financeiro'
+const GOAL_KEY = 'dashboard-metas'
+
+// Tipos: expense (despesa), income (receita), saving (dinheiro guardado)
+const CATEGORIAS = {
+  expense: ['Moradia', 'Alimentação', 'Transporte', 'Lazer', 'Outros'],
+  income: ['Salário', 'Investimentos', 'Outros'],
+  saving: ['Reserva', 'Meta', 'Outros']
+}
+
+const ICONES = {
+  Moradia: 'home',
+  Alimentação: 'utensils',
+  Transporte: 'car',
+  Lazer: 'gamepad',
+  Salário: 'briefcase',
+  Investimentos: 'trend-up',
+  Reserva: 'piggy',
+  Meta: 'target',
+  Outros: 'dots'
+}
+
+const CORES = {
+  Moradia: '#5eead4',
+  Alimentação: '#67e8f9',
+  Transporte: '#34d399',
+  Lazer: '#2a93ad',
+  Outros: '#587676'
+}
+
+const MESES_LONGOS = [
+  'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
+  'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'
+]
+const MESES_CURTOS = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez']
+
+const form = document.querySelector('#transaction-form')
+const typeInput = document.querySelector('#transaction-type')
+const descriptionInput = document.querySelector('#transaction-description')
+const categoryInput = document.querySelector('#transaction-category')
+const amountInput = document.querySelector('#transaction-amount')
+const dateInput = document.querySelector('#transaction-date')
+
+const balanceElement = document.querySelector('#balance')
+const incomeElement = document.querySelector('#income-total')
+const expenseElement = document.querySelector('#expense-total')
+const savedElement = document.querySelector('#saved-total')
+const countElement = document.querySelector('#transaction-count')
+const listElement = document.querySelector('#transaction-list')
+const categoryChart = document.querySelector('#category-chart')
+const categoryPeriod = document.querySelector('#category-period')
+const goalChart = document.querySelector('#goal-chart')
+
+const monthSelect = document.querySelector('#filter-month')
+const yearSelect = document.querySelector('#filter-year')
+
+const typeButtons = document.querySelectorAll('.segmented [data-type]')
+const filterButtons = document.querySelectorAll('.filters [data-filter]')
+
+const currencyFormatter = new Intl.NumberFormat('pt-BR', {
+  style: 'currency',
+  currency: 'BRL'
+})
+
+let activeFilter = 'all'
+
+/* ---------- Utilidades ---------- */
+
+function getToday() {
+  const now = new Date()
+  const year = now.getFullYear()
+  const month = String(now.getMonth() + 1).padStart(2, '0')
+  const day = String(now.getDate()).padStart(2, '0')
+
+  return `${year}-${month}-${day}`
+}
+
+function formatCurrency(value) {
+  return currencyFormatter.format(value)
+}
+
+function formatDate(date) {
+  const [year, month, day] = date.split('-')
+  return `${day}/${month}/${year}`
+}
+
+function emptyMessage(text) {
+  const empty = document.createElement('p')
+  empty.className = 'empty-state'
+  empty.textContent = text
+  return empty
+}
+
+dateInput.value = getToday()
+
+/* ---------- Armazenamento ---------- */
+
+function loadTransactions() {
+  try {
+    const saved = localStorage.getItem(STORAGE_KEY)
+    const transactions = saved ? JSON.parse(saved) : []
+
+    return Array.isArray(transactions) ? transactions : []
+  } catch (error) {
+    console.error('Erro ao carregar movimentações:', error)
+    return []
+  }
+}
+
+let transactions = loadTransactions()
+
+function saveTransactions() {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(transactions))
+    return true
+  } catch (error) {
+    console.error('Erro ao salvar movimentações:', error)
+    alert('Não foi possível salvar os dados no navegador.')
+    return false
+  }
+}
+
+function loadGoal() {
+  try {
+    const goal = JSON.parse(localStorage.getItem(GOAL_KEY))
+    const valid =
+      goal && Number(goal.valor) > 0 && /^\d{4}-\d{2}$/.test(goal.prazo ?? '')
+
+    return valid ? { nome: goal.nome ?? '', valor: Number(goal.valor), prazo: goal.prazo } : null
+  } catch {
+    return null
+  }
+}
+
+function saveGoal(goal) {
+  try {
+    if (goal) localStorage.setItem(GOAL_KEY, JSON.stringify(goal))
+    else localStorage.removeItem(GOAL_KEY)
+    return true
+  } catch (error) {
+    console.error('Erro ao salvar meta:', error)
+    alert('Não foi possível salvar a meta no navegador.')
+    return false
+  }
+}
+
+let goal = loadGoal()
+
+/* ---------- Filtro por mês/ano ---------- */
+
+const now = new Date()
+const period = {
+  year: String(now.getFullYear()),
+  month: String(now.getMonth() + 1).padStart(2, '0')
+}
+
+function fillPeriodSelects() {
+  const years = new Set(
+    transactions.map((item) => item.date?.slice(0, 4)).filter(Boolean)
+  )
+  years.add(String(now.getFullYear()))
+  if (period.year !== 'all') years.add(period.year)
+
+  yearSelect.replaceChildren(
+    new Option('Todos os anos', 'all'),
+    ...[...years].sort().reverse().map((year) => new Option(year, year))
+  )
+  yearSelect.value = period.year
+
+  monthSelect.replaceChildren(
+    new Option('Todos os meses', 'all'),
+    ...MESES_LONGOS.map((name, index) => new Option(name, String(index + 1).padStart(2, '0')))
+  )
+  monthSelect.value = period.year === 'all' ? 'all' : period.month
+  monthSelect.disabled = period.year === 'all'
+}
+
+monthSelect.addEventListener('change', () => {
+  period.month = monthSelect.value
+  renderAll()
+})
+
+yearSelect.addEventListener('change', () => {
+  period.year = yearSelect.value
+  if (period.year === 'all') period.month = 'all'
+  else if (period.month === 'all') period.month = String(now.getMonth() + 1).padStart(2, '0')
+  renderAll()
+})
+
+function inPeriod(item) {
+  if (typeof item.date !== 'string') return false
+  if (period.year === 'all') return true
+  if (!item.date.startsWith(`${period.year}-`)) return false
+  return period.month === 'all' || item.date.slice(5, 7) === period.month
+}
+
+function periodLabel() {
+  if (period.year === 'all') return 'Todo o período'
+  if (period.month === 'all') return `Ano de ${period.year}`
+  return `${MESES_LONGOS[Number(period.month) - 1]} de ${period.year}`
+}
+
+/* ---------- Tipo de movimentação e categorias ---------- */
+
+function fillCategories() {
+  const list = CATEGORIAS[typeInput.value] ?? CATEGORIAS.expense
+
+  categoryInput.replaceChildren(...list.map((name) => new Option(name, name)))
+}
+
+function setType(type) {
+  typeInput.value = type
+  typeButtons.forEach((button) =>
+    button.setAttribute('aria-pressed', String(button.dataset.type === type))
+  )
+  fillCategories()
+}
+
+typeButtons.forEach((button) =>
+  button.addEventListener('click', () => setType(button.dataset.type))
+)
+
+/* ---------- Resumo (respeita o período) ---------- */
+
+function sumByType(list, type) {
+  return list
+    .filter((item) => item.type === type)
+    .reduce((total, item) => total + item.amount, 0)
+}
+
+function updateSummary(list) {
+  const income = sumByType(list, 'income')
+  const expenses = sumByType(list, 'expense')
+  const saved = sumByType(list, 'saving')
+  const balance = income - expenses - saved
+
+  balanceElement.textContent = formatCurrency(balance)
+  incomeElement.textContent = formatCurrency(income)
+  expenseElement.textContent = formatCurrency(expenses)
+  savedElement.textContent = formatCurrency(totalSaved())
+  balanceElement.classList.toggle('is-negative', balance < 0)
+}
+
+/* ---------- Gráfico: despesas por categoria (rosca) ---------- */
+
+function renderCategoryChart(list) {
+  const totals = new Map()
+
+  list
+    .filter((item) => item.type === 'expense')
+    .forEach((item) =>
+      totals.set(item.category, (totals.get(item.category) ?? 0) + item.amount)
+    )
+
+  categoryPeriod.textContent = periodLabel()
+  categoryChart.replaceChildren()
+
+  if (totals.size === 0) {
+    categoryChart.append(emptyMessage('Sem despesas neste período.'))
+    return
+  }
+
+  const entries = [...totals.entries()].sort((a, b) => b[1] - a[1])
+  const total = entries.reduce((sum, [, value]) => sum + value, 0)
+  const R = 42
+  const C = 2 * Math.PI * R
+  let offset = 0
+
+  const arcs = entries
+    .map(([name, value]) => {
+      const length = (value / total) * C
+      const gap = entries.length > 1 ? 2 : 0
+      const arc =
+        `<circle cx="60" cy="60" r="${R}" fill="none" stroke="${CORES[name] ?? '#86a3a3'}" ` +
+        `stroke-width="12" stroke-dasharray="${Math.max(length - gap, 0.5)} ${C}" ` +
+        `stroke-dashoffset="${-offset}" transform="rotate(-90 60 60)"/>`
+      offset += length
+      return arc
+    })
+    .join('')
+
+  const wrapper = document.createElement('div')
+  wrapper.className = 'donut'
+  wrapper.innerHTML =
+    `<svg viewBox="0 0 120 120" role="img" aria-label="Gráfico de despesas por categoria">` +
+    `<circle cx="60" cy="60" r="${R}" fill="none" stroke="rgba(255,255,255,0.06)" stroke-width="12"/>` +
+    `${arcs}</svg>` +
+    `<div class="donut-center"><span>Total</span><strong></strong></div>`
+  wrapper.querySelector('strong').textContent = formatCurrency(total)
+
+  const legend = document.createElement('ul')
+  legend.className = 'legend'
+
+  entries.forEach(([name, value]) => {
+    const item = document.createElement('li')
+
+    const dot = document.createElement('i')
+    dot.className = 'dot'
+    dot.style.background = CORES[name] ?? '#86a3a3'
+
+    const label = document.createElement('span')
+    label.textContent = name
+
+    const percent = document.createElement('b')
+    percent.textContent = `${Math.round((value / total) * 100)}%`
+
+    item.title = formatCurrency(value)
+    item.append(dot, label, percent)
+    legend.append(item)
+  })
+
+  categoryChart.append(wrapper, legend)
+}
+
+/* ---------- Metas financeiras ---------- */
+
+function totalSaved() {
+  // A meta considera tudo o que já foi guardado, independente do filtro de período.
+  return sumByType(transactions, 'saving')
+}
+
+function monthsUntil(deadline) {
+  const [year, month] = deadline.split('-').map(Number)
+  const diff = (year - now.getFullYear()) * 12 + (month - (now.getMonth() + 1))
+  return diff + 1 // conta o mês atual
+}
+
+function deadlineLabel(deadline) {
+  const [year, month] = deadline.split('-').map(Number)
+  return `${MESES_CURTOS[month - 1]}/${year}`
+}
+
+function statRow(colorClass, label, value) {
+  const row = document.createElement('div')
+  row.className = 'goal-stat'
+
+  const name = document.createElement('dt')
+  const dot = document.createElement('i')
+  dot.className = `dot ${colorClass}`
+  name.append(dot, label)
+
+  const amount = document.createElement('dd')
+  amount.textContent = value
+
+  row.append(name, amount)
+  return row
+}
+
+function renderGoal() {
+  const editButton = document.querySelector('#goal-edit')
+  goalChart.replaceChildren()
+
+  editButton.innerHTML = icon(goal ? 'pencil' : 'plus')
+  editButton.setAttribute('aria-label', goal ? 'Editar meta' : 'Definir meta')
+  editButton.title = goal ? 'Editar meta' : 'Definir meta'
+
+  if (!goal) {
+    const empty = document.createElement('div')
+    empty.className = 'goal-empty'
+    empty.innerHTML = `<span class="empty-icon">${icon('target')}</span>`
+
+    const text = document.createElement('p')
+    text.textContent =
+      'Defina uma meta para acompanhar quanto já foi guardado, quanto falta e quanto guardar por mês.'
+
+    const button = document.createElement('button')
+    button.type = 'button'
+    button.className = 'btn btn-primary'
+    button.textContent = 'Definir meta'
+    button.addEventListener('click', () => openGoalDialog())
+
+    empty.append(text, button)
+    goalChart.append(empty)
+    return
+  }
+
+  const saved = totalSaved()
+  const remaining = Math.max(goal.valor - saved, 0)
+  const ratio = Math.min(saved / goal.valor, 1)
+  const months = monthsUntil(goal.prazo)
+
+  const R = 42
+  const C = 2 * Math.PI * R
+
+  const ring = document.createElement('div')
+  ring.className = 'donut goal-ring'
+  ring.innerHTML =
+    `<svg viewBox="0 0 120 120" role="img" aria-label="Progresso da meta financeira">` +
+    `<defs><linearGradient id="g-goal" x1="0" y1="0" x2="1" y2="1">` +
+    `<stop offset="0" stop-color="#5eead4"/><stop offset="1" stop-color="#34d399"/></linearGradient></defs>` +
+    `<circle cx="60" cy="60" r="${R}" fill="none" stroke="rgba(255,255,255,0.08)" stroke-width="12"/>` +
+    (ratio > 0
+      ? `<circle cx="60" cy="60" r="${R}" fill="none" stroke="url(#g-goal)" stroke-width="12" ` +
+        `stroke-linecap="round" stroke-dasharray="${Math.max(ratio * C, 0.5)} ${C}" transform="rotate(-90 60 60)"/>`
+      : '') +
+    `</svg><div class="donut-center"><strong>${Math.floor(ratio * 100)}%</strong><span>da meta</span></div>`
+
+  const stats = document.createElement('dl')
+  stats.className = 'goal-stats'
+  stats.append(
+    statRow('dot-saved', 'Guardado', formatCurrency(saved)),
+    statRow('dot-remaining', 'Falta', formatCurrency(remaining)),
+    statRow('dot-goal', goal.nome || 'Meta', formatCurrency(goal.valor))
+  )
+
+  const top = document.createElement('div')
+  top.className = 'goal-top'
+  top.append(ring, stats)
+
+  const hint = document.createElement('div')
+  hint.className = 'goal-hint'
+
+  const label = document.createElement('span')
+  const value = document.createElement('strong')
+  const note = document.createElement('small')
+
+  if (remaining === 0) {
+    hint.classList.add('is-done')
+    label.textContent = 'Meta atingida'
+    value.textContent = 'Parabéns!'
+    note.textContent = 'Você já guardou o valor planejado.'
+  } else if (months < 1) {
+    hint.classList.add('is-late')
+    label.textContent = 'Prazo encerrado'
+    value.textContent = `Faltam ${formatCurrency(remaining)}`
+    note.textContent = 'Edite a meta e escolha um novo prazo para recalcular.'
+  } else {
+    label.textContent = 'Guardar em média'
+    value.textContent = `${formatCurrency(remaining / months)} / mês`
+    note.textContent =
+      `${months} ${months === 1 ? 'mês' : 'meses'} até ${deadlineLabel(goal.prazo)}, contando o mês atual.`
+  }
+
+  hint.append(label, value, note)
+  goalChart.append(top, hint)
+}
+
+/* Pop-up da meta */
+
+const goalDialog = document.querySelector('#goal-dialog')
+const goalForm = document.querySelector('#goal-form')
+const goalName = document.querySelector('#goal-name')
+const goalTarget = document.querySelector('#goal-target')
+const goalDeadline = document.querySelector('#goal-deadline')
+const goalError = document.querySelector('#goal-error')
+const goalDelete = document.querySelector('#goal-delete')
+
+function openGoalDialog() {
+  goalError.textContent = ''
+  goalDelete.hidden = !goal
+  document.querySelector('#goal-dialog-title').textContent = goal ? 'Editar meta' : 'Definir meta'
+
+  goalName.value = goal?.nome ?? ''
+  goalTarget.value = goal ? String(goal.valor) : ''
+
+  const fallback = new Date(now.getFullYear(), now.getMonth() + 12, 1)
+  goalDeadline.value =
+    goal?.prazo ?? `${fallback.getFullYear()}-${String(fallback.getMonth() + 1).padStart(2, '0')}`
+  goalDeadline.min = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
+
+  goalDialog.showModal()
+  goalTarget.focus()
+}
+
+document.querySelector('#goal-edit').addEventListener('click', openGoalDialog)
+document.querySelector('#goal-cancel').addEventListener('click', () => goalDialog.close())
+document.querySelector('#goal-cancel-x').addEventListener('click', () => goalDialog.close())
+goalDialog.addEventListener('click', (event) => {
+  if (event.target === goalDialog) goalDialog.close()
+})
+
+goalForm.addEventListener('submit', (event) => {
+  event.preventDefault()
+
+  const valor = Number(goalTarget.value)
+  const prazo = goalDeadline.value
+
+  if (!Number.isFinite(valor) || valor <= 0) {
+    goalError.textContent = 'Informe um valor maior que zero.'
+    goalTarget.focus()
+    return
+  }
+
+  if (!/^\d{4}-\d{2}$/.test(prazo) || monthsUntil(prazo) < 1) {
+    goalError.textContent = 'Escolha um prazo a partir do mês atual.'
+    goalDeadline.focus()
+    return
+  }
+
+  const next = { nome: goalName.value.trim(), valor: Math.round(valor * 100) / 100, prazo }
+
+  if (!saveGoal(next)) return
+
+  goal = next
+  goalDialog.close()
+  renderGoal()
+})
+
+goalDelete.addEventListener('click', () => {
+  if (!confirm('Remover a meta financeira? O dinheiro guardado continua registrado.')) return
+  if (!saveGoal(null)) return
+
+  goal = null
+  goalDialog.close()
+  renderGoal()
+})
+
+/* ---------- Histórico ---------- */
+
+// Movimentações do período já filtradas por tipo e ordenadas (usadas na tela e no PDF).
+function getVisible(list) {
+  return list
+    .filter((item) => activeFilter === 'all' || item.type === activeFilter)
+    .sort((a, b) => b.date.localeCompare(a.date))
+}
+
+function renderTransactions(list) {
+  listElement.replaceChildren()
+
+  const visible = getVisible(list)
+
+  countElement.textContent = `${visible.length} ${visible.length === 1 ? 'registro' : 'registros'}`
+
+  if (visible.length === 0) {
+    listElement.appendChild(
+      emptyMessage(
+        transactions.length === 0
+          ? 'Nenhuma movimentação cadastrada.'
+          : 'Nenhuma movimentação neste período.'
+      )
+    )
+    return
+  }
+
+  visible.forEach((transaction) => {
+    const item = document.createElement('article')
+    item.className = 'transaction-item'
+
+    const badge = document.createElement('span')
+    badge.className = `transaction-icon ${transaction.type}`
+    badge.innerHTML = icon(
+      transaction.type === 'saving' ? 'piggy' : ICONES[transaction.category] ?? 'dots'
+    )
+
+    const info = document.createElement('div')
+    info.className = 'transaction-info'
+
+    const title = document.createElement('h3')
+    title.textContent = transaction.description
+
+    const details = document.createElement('p')
+    details.textContent = `${transaction.category} · ${formatDate(transaction.date)}`
+
+    info.append(title, details)
+
+    const right = document.createElement('div')
+    right.className = 'transaction-right'
+
+    const value = document.createElement('span')
+    value.className = `transaction-value ${transaction.type}`
+
+    const signal = { income: '+ ', expense: '− ', saving: '' }[transaction.type] ?? ''
+    value.textContent = `${signal}${formatCurrency(transaction.amount)}`
+
+    const deleteButton = document.createElement('button')
+    deleteButton.className = 'delete-button'
+    deleteButton.type = 'button'
+    deleteButton.innerHTML = icon('trash')
+    deleteButton.title = 'Excluir'
+    deleteButton.setAttribute('aria-label', `Excluir ${transaction.description}`)
+
+    deleteButton.addEventListener('click', () => {
+      const confirmed = confirm(`Deseja excluir "${transaction.description}"?`)
+
+      if (!confirmed) return
+
+      const previousTransactions = transactions
+      transactions = transactions.filter((entry) => entry.id !== transaction.id)
+
+      if (saveTransactions()) {
+        renderAll()
+      } else {
+        transactions = previousTransactions
+      }
+    })
+
+    right.append(value, deleteButton)
+    item.append(badge, info, right)
+    listElement.appendChild(item)
+  })
+}
+
+const exportButton = document.querySelector('#export-pdf')
+const FILTER_LABELS = { all: 'Todas', income: 'Receitas', expense: 'Despesas', saving: 'Guardado' }
+
+function updateExportButton(list) {
+  const empty = getVisible(list).length === 0
+  exportButton.disabled = empty
+  exportButton.title = empty ? 'Não há movimentações para exportar neste período' : 'Exportar relatório em PDF'
+}
+
+exportButton.addEventListener('click', () => {
+  const periodList = transactions.filter(inPeriod)
+  const shown = getVisible(periodList)
+  if (shown.length === 0) return
+
+  try {
+    const blob = gerarRelatorioFinanceiro({
+      periodo: periodList,
+      exibidas: shown,
+      rotuloPeriodo: periodLabel(),
+      rotuloFiltro: FILTER_LABELS[activeFilter],
+      totalGuardado: totalSaved()
+    })
+    baixarArquivo(blob, nomeArquivoFinanceiro(period.year, period.month))
+    mostrarAviso('PDF gerado')
+  } catch (error) {
+    console.error('Erro ao gerar PDF:', error)
+    alert('Não foi possível gerar o PDF.')
+  }
+})
+
+function renderAll() {
+  fillPeriodSelects()
+
+  const list = transactions.filter(inPeriod)
+
+  updateExportButton(list)
+  updateSummary(list)
+  renderCategoryChart(list)
+  renderTransactions(list)
+  renderGoal()
+}
+
+filterButtons.forEach((button) =>
+  button.addEventListener('click', () => {
+    activeFilter = button.dataset.filter
+    filterButtons.forEach((b) =>
+      b.setAttribute('aria-pressed', String(b === button))
+    )
+    renderAll()
+  })
+)
+
+form.addEventListener('submit', (event) => {
+  event.preventDefault()
+
+  const description = descriptionInput.value.trim()
+  const amount = Number(amountInput.value)
+  const date = dateInput.value
+
+  if (!description || !Number.isFinite(amount) || amount <= 0 || !date) {
+    alert('Preencha todos os campos com valores válidos.')
+    return
+  }
+
+  const transaction = {
+    id: crypto.randomUUID(),
+    type: typeInput.value,
+    description,
+    category: categoryInput.value,
+    amount: Math.round(amount * 100) / 100,
+    date
+  }
+
+  transactions.push(transaction)
+
+  if (!saveTransactions()) {
+    transactions.pop()
+    return
+  }
+
+  // Se a data registrada está fora do período filtrado, mostra o período dela.
+  if (!inPeriod(transaction)) {
+    period.year = date.slice(0, 4)
+    period.month = date.slice(5, 7)
+  }
+
+  const type = typeInput.value
+  form.reset()
+  dateInput.value = getToday()
+  setType(type)
+
+  renderAll()
+  descriptionInput.focus()
+})
+
+setType('expense')
+renderAll()

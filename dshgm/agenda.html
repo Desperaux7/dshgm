@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Agenda pessoal">
+  <meta name="theme-color" content="#040a0b">
+  <title>Agenda | Dashboard Pessoal</title>
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <script>
+    /* Aplica as preferências antes da primeira pintura (evita piscar a cor padrão). */
+    try {
+      var p = JSON.parse(localStorage.getItem('dashboard-preferencias')) || {}
+      var r = document.documentElement
+      if (p.destaque) r.dataset.accent = p.destaque
+      if (p.fundo) r.dataset.aurora = { animado: 'animada', estatico: 'estatica', desligado: 'desligada' }[p.fundo] || 'animada'
+      if (p.densidade) r.dataset.densidade = p.densidade
+    } catch (e) {}
+  </script>
+</head>
+
+<body>
+  <div class="aurora aurora-soft" aria-hidden="true">
+    <span class="a1"></span><span class="a2"></span><span class="a3"></span>
+  </div>
+
+  <!-- Menu lateral, conta e painel de perfil são injetados por src/modules/shell.js -->
+  <div class="app" data-page="agenda">
+    <main class="page" id="agenda-page">
+
+      <header class="page-header">
+        <a href="index.html" class="back-link">
+          <svg class="icon" aria-hidden="true"><use href="#i-arrow-left"></use></svg>
+          Voltar à dashboard
+        </a>
+        <p class="kicker">ORGANIZAÇÃO</p>
+        <h1>Agenda pessoal</h1>
+        <p class="page-lead">Compromissos, eventos e rotinas em um calendário mensal.</p>
+      </header>
+
+      <div class="agenda-layout">
+        <section class="page-panel calendar" aria-label="Calendário mensal">
+          <div class="calendar-head">
+            <h2 id="cal-title" aria-live="polite"></h2>
+            <div class="calendar-nav">
+              <button class="btn btn-sm" id="cal-today" type="button">Hoje</button>
+              <button class="icon-btn" id="cal-prev" type="button" aria-label="Mês anterior">
+                <svg class="icon" aria-hidden="true"><use href="#i-chevron-left"></use></svg>
+              </button>
+              <button class="icon-btn" id="cal-next" type="button" aria-label="Próximo mês">
+                <svg class="icon" aria-hidden="true"><use href="#i-chevron-right"></use></svg>
+              </button>
+            </div>
+          </div>
+
+          <div class="calendar-weekdays" id="cal-weekdays" aria-hidden="true"></div>
+          <div class="calendar-grid" id="cal-grid" role="grid" aria-labelledby="cal-title"></div>
+        </section>
+
+        <aside class="page-panel day-panel" aria-label="Compromissos do dia selecionado">
+          <div class="panel-heading">
+            <div>
+              <p class="kicker" id="day-kicker">DIA SELECIONADO</p>
+              <h2 id="day-title"></h2>
+            </div>
+            <button class="panel-add" id="day-add" type="button" aria-label="Novo evento" title="Novo evento">
+              <svg class="icon" aria-hidden="true"><use href="#i-plus"></use></svg>
+            </button>
+          </div>
+          <ul class="day-list" id="day-list"></ul>
+        </aside>
+      </div>
+
+    </main>
+  </div>
+
+  <script type="module" src="/src/pages/agenda.js"></script>
+</body>
+</html>

@@ -1,0 +1,304 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      name="description"
+      content="Dashboard de organização pessoal."
+    />
+    <meta name="theme-color" content="#040a0b" />
+    <title>DSHGM</title>
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <script>
+      /* Aplica as preferências antes da primeira pintura (evita piscar a cor padrão). */
+      try {
+        var p = JSON.parse(localStorage.getItem('dashboard-preferencias')) || {}
+        var r = document.documentElement
+        if (p.destaque) r.dataset.accent = p.destaque
+        if (p.fundo) r.dataset.aurora = { animado: 'animada', estatico: 'estatica', desligado: 'desligada' }[p.fundo] || 'animada'
+        if (p.densidade) r.dataset.densidade = p.densidade
+      } catch (e) {}
+    </script>
+  </head>
+
+  <body>
+    <div class="aurora" aria-hidden="true">
+      <span class="a1"></span><span class="a2"></span><span class="a3"></span>
+    </div>
+
+    <!-- Menu lateral e conta do usuário são injetados por src/modules/shell.js -->
+    <div class="app" data-page="inicio">
+      <main class="main" id="inicio">
+
+        <!-- Hero -->
+        <section class="hero">
+          <div class="hero-center">
+            <div class="hero-row">
+              <h1 class="hero-greeting">
+                <span id="welcome-title">Bom dia,</span>
+                <span id="welcome-name">Gustavo</span>
+              </h1>
+
+              <div class="hero-info">
+                <div class="weather" id="weather" hidden>
+                  <div class="weather-main">
+                    <svg class="icon" id="weather-icon" aria-hidden="true"><use href="#i-cloud-sun" /></svg>
+                    <span class="weather-temp" id="weather-temp">--°</span>
+                    <span class="weather-cond" id="weather-cond"></span>
+                  </div>
+                  <div class="weather-rain" id="weather-rain">
+                    <svg class="icon" aria-hidden="true"><use href="#i-droplet" /></svg>
+                    <span id="weather-rain-text"></span>
+                  </div>
+                </div>
+                <div class="hero-date" id="current-date">Carregando data...</div>
+                <time class="hero-clock" id="clock">--:--</time>
+              </div>
+            </div>
+
+            <form
+              class="google-search"
+              id="google-search"
+              role="search"
+              action="https://www.google.com/search"
+              method="get"
+              target="_blank"
+            >
+              <button
+                class="google-search-toggle"
+                id="google-search-toggle"
+                type="button"
+                aria-label="Abrir pesquisa do Google"
+                aria-expanded="false"
+                aria-controls="google-search-input"
+              >
+                <svg class="icon" aria-hidden="true"><use href="#i-search" /></svg>
+              </button>
+              <input
+                class="google-search-input"
+                id="google-search-input"
+                type="search"
+                name="q"
+                placeholder="O que deseja buscar hoje?"
+                aria-label="Pesquisar no Google"
+                autocomplete="off"
+                tabindex="-1"
+              />
+            </form>
+
+            <nav class="shortcuts" id="shortcuts" data-card="atalhos" aria-label="Atalhos de favoritos" hidden></nav>
+          </div>
+
+          <a class="scroll-cue" href="#painel" aria-label="Ir para o painel">
+            <svg class="icon" aria-hidden="true"><use href="#i-arrow-down" /></svg>
+          </a>
+        </section>
+
+        <!-- Painel -->
+        <section class="board" id="painel">
+          <header class="board-header">
+            <p class="kicker">WORKSPACE</p>
+            <h2>Visão geral</h2>
+          </header>
+
+          <!-- Indicadores rápidos -->
+          <div class="stats-grid" aria-label="Resumo do dia">
+            <article class="stat-card" data-card="resumo-tarefas">
+              <div class="stat-top">
+                <span class="stat-label">Tarefas pendentes</span>
+                <span class="chip"><svg class="icon" aria-hidden="true"><use href="#i-tasks" /></svg></span>
+              </div>
+              <strong class="stat-value" id="pending-count">0</strong>
+              <span class="stat-description">Itens para concluir</span>
+            </article>
+
+            <article class="stat-card" data-card="resumo-agenda">
+              <div class="stat-top">
+                <span class="stat-label">Próximo compromisso</span>
+                <span class="chip chip-ocean"><svg class="icon" aria-hidden="true"><use href="#i-calendar" /></svg></span>
+              </div>
+              <strong class="stat-value stat-text" id="next-event-title">Sem eventos</strong>
+              <span class="stat-description" id="next-event-when">Sua agenda aparecerá aqui</span>
+            </article>
+
+            <article class="stat-card" data-card="resumo-saldo">
+              <div class="stat-top">
+                <span class="stat-label">Saldo do mês</span>
+                <span class="chip chip-mint"><svg class="icon" aria-hidden="true"><use href="#i-wallet" /></svg></span>
+              </div>
+              <strong class="stat-value stat-text" id="month-balance">Não informado</strong>
+              <a class="stat-link" href="financeiro.html">
+                Acessar finanças
+                <svg class="icon" aria-hidden="true"><use href="#i-chevron-right" /></svg>
+              </a>
+            </article>
+          </div>
+
+          <!-- Módulos -->
+          <div class="dashboard-grid">
+
+            <!-- Agenda -->
+            <section class="panel agenda-panel" id="agenda" data-card="painel-agenda">
+              <div class="panel-header">
+                <div>
+                  <p class="kicker">ORGANIZAÇÃO</p>
+                  <h3>Próximos compromissos</h3>
+                </div>
+                <span class="chip chip-ocean"><svg class="icon" aria-hidden="true"><use href="#i-calendar" /></svg></span>
+              </div>
+
+              <ul class="agenda-list" id="agenda-upcoming"></ul>
+
+              <div class="panel-actions">
+                <a class="secondary-button" href="agenda.html">Abrir agenda</a>
+                <button class="secondary-button" id="agenda-add" type="button">Novo evento</button>
+              </div>
+            </section>
+
+            <!-- Tarefas -->
+            <section class="panel tasks-panel" id="tarefas" data-card="painel-tarefas">
+              <div class="panel-header">
+                <div>
+                  <p class="kicker">PRODUTIVIDADE</p>
+                  <h3>Tarefas do dia</h3>
+                </div>
+                <button class="panel-add" id="task-add" type="button" aria-label="Adicionar tarefa" title="Adicionar tarefa">
+                  <svg class="icon" aria-hidden="true"><use href="#i-plus" /></svg>
+                </button>
+              </div>
+
+              <p class="task-day" id="task-day"></p>
+
+              <div class="task-progress">
+                <span id="task-progress-label">0 de 0 concluídas</span>
+                <div class="progress-track">
+                  <div id="task-progress-bar" class="progress-fill"></div>
+                </div>
+              </div>
+
+              <ul id="task-list" class="task-list">
+                <li class="task-placeholder">Nenhuma tarefa para hoje.</li>
+              </ul>
+            </section>
+
+            <!-- Spotify -->
+            <section class="panel spotify-panel" id="spotify" data-card="painel-spotify">
+              <div class="panel-header">
+                <div>
+                  <p class="kicker">TRILHA SONORA</p>
+                  <h3>Spotify</h3>
+                </div>
+                <span class="chip chip-mint"><svg class="icon" aria-hidden="true"><use href="#i-spotify" /></svg></span>
+              </div>
+
+              <div class="spotify-content">
+                <div class="spotify-art">
+                  <svg class="icon" aria-hidden="true"><use href="#i-spotify" /></svg>
+                  <img id="spotify-cover" class="spotify-cover" alt="Capa do álbum" hidden />
+                </div>
+
+                <div class="spotify-info">
+                  <strong id="spotify-track">Sua música, seu ritmo</strong>
+                  <span id="spotify-artist">Conecte sua conta para começar.</span>
+                </div>
+              </div>
+
+              <div class="spotify-progress">
+                <input
+                  type="range"
+                  id="spotify-progress"
+                  min="0"
+                  max="1000"
+                  value="0"
+                  step="1"
+                  aria-label="Posição da música"
+                />
+                <div class="spotify-progress-time">
+                  <span id="spotify-current-time">0:00</span>
+                  <span id="spotify-duration">0:00</span>
+                </div>
+              </div>
+
+              <div class="spotify-controls">
+                <button id="spotify-previous" type="button" aria-label="Música anterior" title="Música anterior">
+                  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 5v14M19 6l-9 6 9 6V6Z" /></svg>
+                </button>
+                <button id="spotify-play-pause" type="button" aria-label="Reproduzir ou pausar" title="Reproduzir ou pausar">
+                  <svg id="spotify-play-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14l11-7-11-7Z" /></svg>
+                </button>
+                <button id="spotify-next" type="button" aria-label="Próxima música" title="Próxima música">
+                  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 5v14M5 6l9 6-9 6V6Z" /></svg>
+                </button>
+              </div>
+
+              <p id="spotify-status" class="spotify-status" role="status" aria-live="polite">
+                Não conectado
+              </p>
+
+              <button class="spotify-button" id="spotify-button" type="button">
+                Integração em breve
+              </button>
+            </section>
+
+          </div>
+
+          <footer class="page-footer">
+            <span>Dashboard</span>
+            <span>Fight or be Forgotten</span>
+          </footer>
+        </section>
+
+      </main>
+    </div>
+
+    <!-- Pop-up de cadastro/edição de tarefa -->
+    <dialog class="modal" id="task-dialog" aria-labelledby="task-dialog-title">
+      <form class="modal-form" id="task-form" novalidate>
+        <div class="modal-head">
+          <div>
+            <p class="kicker" id="task-dialog-kicker">NOVA TAREFA</p>
+            <h2 id="task-dialog-title">Adicionar tarefa</h2>
+          </div>
+          <button class="icon-btn" id="task-cancel-x" type="button" aria-label="Fechar">
+            <svg class="icon" aria-hidden="true"><use href="#i-x" /></svg>
+          </button>
+        </div>
+
+        <label class="field">
+          Nome da tarefa
+          <input id="task-input" type="text" maxlength="120" autocomplete="off" placeholder="Ex.: Treinar" />
+        </label>
+
+        <div class="field">
+          Frequência
+          <div class="toggle-group" role="group" aria-label="Frequência da tarefa">
+            <button type="button" data-kind="unica" aria-pressed="true">Única</button>
+            <button type="button" data-kind="recorrente" aria-pressed="false">Recorrente</button>
+          </div>
+        </div>
+
+        <label class="field" id="task-date-field">
+          Data
+          <input id="task-date" type="date" />
+        </label>
+
+        <div class="field" id="task-days-field" hidden>
+          Repetir nos dias
+          <div class="weekdays" id="task-weekdays" role="group" aria-label="Dias da semana"></div>
+        </div>
+
+        <p class="modal-error" id="task-error" role="alert"></p>
+
+        <div class="modal-actions">
+          <button class="btn btn-danger" id="task-delete-modal" type="button" hidden>Excluir</button>
+          <span class="spacer"></span>
+          <button class="btn" id="task-cancel" type="button">Cancelar</button>
+          <button class="btn btn-primary" type="submit">Salvar</button>
+        </div>
+      </form>
+    </dialog>
+
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>

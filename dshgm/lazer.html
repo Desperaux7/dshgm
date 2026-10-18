@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Central de lazer">
+  <meta name="theme-color" content="#040a0b">
+  <title>Lazer | DSHGM</title>
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <script>
+    /* Aplica as preferências antes da primeira pintura (evita piscar a cor padrão). */
+    try {
+      var p = JSON.parse(localStorage.getItem('dashboard-preferencias')) || {}
+      var r = document.documentElement
+      if (p.destaque) r.dataset.accent = p.destaque
+      if (p.fundo) r.dataset.aurora = { animado: 'animada', estatico: 'estatica', desligado: 'desligada' }[p.fundo] || 'animada'
+      if (p.densidade) r.dataset.densidade = p.densidade
+    } catch (e) {}
+  </script>
+</head>
+
+<body>
+  <div class="aurora aurora-soft" aria-hidden="true">
+    <span class="a1"></span><span class="a2"></span><span class="a3"></span>
+  </div>
+
+  <!-- Menu lateral, conta e painel de perfil são injetados por src/modules/shell.js -->
+  <div class="app" data-page="lazer">
+    <main class="page" id="lazer-page">
+
+      <header class="page-header">
+        <a href="index.html" class="back-link">
+          <svg class="icon" aria-hidden="true"><use href="#i-arrow-left"></use></svg>
+          Voltar à dashboard
+        </a>
+        <p class="kicker">BACKLOG</p>
+        <h1>Central de lazer</h1>
+        <p class="page-lead">Jogos, filmes e séries em um só lugar. Acompanhe o que falta, o que está rolando e o que já foi.</p>
+      </header>
+
+      <div class="page-toolbar">
+        <label class="search-field">
+          <svg class="icon" aria-hidden="true"><use href="#i-search"></use></svg>
+          <input id="lib-search" type="search" placeholder="Pesquisar na biblioteca ( / )" autocomplete="off" aria-label="Pesquisar na biblioteca">
+        </label>
+        <select class="select" id="lib-sort" aria-label="Ordenar por">
+          <option value="recentes">Mais recentes</option>
+          <option value="titulo">Título (A–Z)</option>
+        </select>
+        <span class="spacer"></span>
+        <button class="btn" id="lib-draw" type="button">
+          <svg class="icon" aria-hidden="true"><use href="#i-dice"></use></svg>
+          Sortear
+        </button>
+        <button class="btn btn-primary" id="lib-add" type="button">
+          <svg class="icon" aria-hidden="true"><use href="#i-plus"></use></svg>
+          Adicionar
+        </button>
+      </div>
+
+      <div class="filter-rows">
+        <div class="filters" id="lib-types" role="group" aria-label="Filtrar por tipo"></div>
+        <div class="filters" id="lib-status" role="group" aria-label="Filtrar por situação"></div>
+      </div>
+
+      <section class="page-panel" aria-label="Biblioteca">
+        <div id="lib-list"></div>
+      </section>
+
+    </main>
+  </div>
+
+  <!-- Pop-up de cadastro/edição -->
+  <dialog class="modal modal-wide" id="lib-dialog" aria-labelledby="lib-dialog-title">
+    <form class="modal-form" id="lib-form" novalidate>
+      <div class="modal-head">
+        <div>
+          <p class="kicker" id="lib-dialog-kicker">NOVO ITEM</p>
+          <h2 id="lib-dialog-title">Adicionar à biblioteca</h2>
+        </div>
+        <button class="icon-btn" id="lib-cancel-x" type="button" aria-label="Fechar">
+          <svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg>
+        </button>
+      </div>
+
+      <div class="lib-form-grid">
+        <div class="cover-field">
+          <button class="cover-drop" id="lib-cover-drop" type="button" aria-label="Escolher imagem de capa">
+            <span class="cover-drop-empty" id="lib-cover-empty">
+              <svg class="icon" aria-hidden="true"><use href="#i-upload"></use></svg>
+              <b>Enviar capa</b>
+              <small>Clique ou arraste</small>
+            </span>
+            <img id="lib-cover-preview" alt="Prévia da capa" hidden>
+          </button>
+          <button class="link-btn" id="lib-cover-remove" type="button" hidden>Remover capa</button>
+          <input id="lib-cover-input" type="file" accept="image/*" hidden>
+          <p class="drawer-note">Padrão Steam Grid: 600×900 (vertical) ou 920×430 (horizontal).</p>
+        </div>
+
+        <div class="lib-fields">
+          <label class="field">
+            Título
+            <input id="lib-title" type="text" maxlength="100" autocomplete="off" placeholder="Ex.: Hollow Knight">
+          </label>
+
+          <div class="field">
+            Tipo
+            <div class="toggle-group" id="lib-type" role="group" aria-label="Tipo"></div>
+          </div>
+
+          <div class="field">
+            Situação
+            <div class="toggle-group" id="lib-state" role="group" aria-label="Situação"></div>
+          </div>
+
+          <div class="field" id="lib-progress-field">
+            <span class="field-split">Progresso do jogo <output id="lib-progress-out">0%</output></span>
+            <input class="range" id="lib-progress" type="range" min="0" max="100" step="5" value="0" aria-label="Progresso do jogo">
+          </div>
+
+          <label class="field">
+            <span id="lib-platform-label">Plataforma</span>
+            <input id="lib-platform" type="text" maxlength="40" autocomplete="off">
+          </label>
+        </div>
+      </div>
+
+      <p class="modal-error" id="lib-error" role="alert"></p>
+
+      <div class="modal-actions">
+        <button class="btn btn-danger" id="lib-delete" type="button" hidden>Excluir</button>
+        <span class="spacer"></span>
+        <button class="btn" id="lib-cancel" type="button">Cancelar</button>
+        <button class="btn btn-primary" type="submit">Salvar</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- Resultado do sorteio -->
+  <dialog class="modal" id="draw-dialog" aria-labelledby="draw-title">
+    <div class="modal-form draw-box">
+      <div class="modal-head">
+        <div>
+          <p class="kicker" id="draw-kicker">SORTEIO</p>
+          <h2 id="draw-title">O que vai ser hoje?</h2>
+        </div>
+        <button class="icon-btn" id="draw-close-x" type="button" aria-label="Fechar">
+          <svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg>
+        </button>
+      </div>
+
+      <div class="draw-result" id="draw-result" aria-live="polite">
+        <div class="draw-cover" id="draw-cover"></div>
+        <strong id="draw-name"></strong>
+        <small id="draw-meta"></small>
+      </div>
+
+      <div class="modal-actions">
+        <button class="btn" id="draw-again" type="button">
+          <svg class="icon" aria-hidden="true"><use href="#i-shuffle"></use></svg>
+          Sortear de novo
+        </button>
+        <span class="spacer"></span>
+        <button class="btn btn-primary" id="draw-start" type="button">
+          <svg class="icon" aria-hidden="true"><use href="#i-play"></use></svg>
+          Começar
+        </button>
+      </div>
+    </div>
+  </dialog>
+
+  <script type="module" src="/src/pages/lazer.js"></script>
+</body>
+</html>
