@@ -1,7 +1,6 @@
 import { icon } from './icons.js'
-import { lerJSON, salvarJSON, escaparHTML } from '../services/storage.js'
-
-const CHAVE = 'dashboard-favoritos'
+import { escaparHTML } from '../services/storage.js'
+import { favoritosApi } from '../services/favoritosApi.js'
 
 export const CATEGORIAS_PADRAO = ['Estudos', 'Desenvolvimento', 'Dia a dia', 'Games']
 const LIMITE_ATALHOS = 8
@@ -12,25 +11,8 @@ const LIMITE_ATALHOS = 8
   fixado: aparece nos atalhos da página inicial.
 */
 
-function normalizar(bruto) {
-  if (!bruto || typeof bruto.url !== 'string' || typeof bruto.nome !== 'string') return null
-  return {
-    id: bruto.id ?? crypto.randomUUID(),
-    nome: bruto.nome,
-    url: bruto.url,
-    categoria: typeof bruto.categoria === 'string' && bruto.categoria ? bruto.categoria : 'Dia a dia',
-    fixado: bruto.fixado !== false,
-    criado: Number(bruto.criado) || Date.now()
-  }
-}
-
-export function carregarFavoritos() {
-  const dados = lerJSON(CHAVE, [])
-  return Array.isArray(dados) ? dados.map(normalizar).filter(Boolean) : []
-}
-
-export const salvarFavoritos = (lista) => salvarJSON(CHAVE, lista)
-export const CHAVE_FAVORITOS = CHAVE
+// Favoritos da conta (o servidor devolve o modelo já normalizado).
+export const carregarFavoritos = () => favoritosApi.listar()
 
 // Aceita "exemplo.com" e completa com https://. Só permite http e https.
 export function normalizarURL(texto) {
@@ -88,8 +70,10 @@ export function iniciarAtalhos() {
   const raiz = document.querySelector('#shortcuts')
   if (!raiz) return
 
+  let favoritos = []
+
   function renderizar() {
-    const lista = carregarFavoritos()
+    const lista = favoritos
       .filter((f) => f.fixado)
       .sort((a, b) => a.criado - b.criado)
     const visiveis = lista.slice(0, LIMITE_ATALHOS)
@@ -121,9 +105,19 @@ export function iniciarAtalhos() {
     raiz.append(mais)
   }
 
-  renderizar()
-  window.addEventListener('storage', (e) => {
-    if (e.key === CHAVE) renderizar()
+  async function carregar() {
+    try {
+      favoritos = await carregarFavoritos()
+    } catch {
+      /* sem resposta: mostra só o atalho "Adicionar" */
+    }
+    renderizar()
+  }
+
+  carregar()
+  // Ao voltar para a aba, traz alterações feitas em outro dispositivo ou aba.
+  document.addEventListener('visibilitychange', () => {
+    if (!document.hidden) carregar()
   })
 }
 

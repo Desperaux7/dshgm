@@ -1,6 +1,6 @@
 import { icon } from './icons.js'
-
-const STORAGE_KEY = 'dashboard-tarefas'
+import { mostrarAviso } from './shell.js'
+import { tarefasApi } from '../services/tarefasApi.js'
 
 const DIAS_CURTOS = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb']
 const DIAS_LONGOS = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado']
@@ -28,51 +28,9 @@ function diaDaSemana(chave) {
   return new Date(`${chave}T12:00:00`).getDay()
 }
 
-// Aceita tarefas do formato antigo ({ id, texto, concluida }) e normaliza tudo.
-function normalizar(bruta) {
-  if (!bruta || typeof bruta.texto !== 'string') return null
-
-  const hoje = chaveData()
-  const concluidas =
-    bruta.concluidas && typeof bruta.concluidas === 'object'
-      ? { ...bruta.concluidas }
-      : bruta.concluida
-        ? { [hoje]: true }
-        : {}
-
-  const recorrente = bruta.tipo === 'recorrente'
-  const dias = Array.isArray(bruta.dias)
-    ? [...new Set(bruta.dias.filter((d) => Number.isInteger(d) && d >= 0 && d <= 6))].sort()
-    : []
-
-  return {
-    id: bruta.id ?? crypto.randomUUID(),
-    texto: bruta.texto,
-    tipo: recorrente ? 'recorrente' : 'unica',
-    data: typeof bruta.data === 'string' ? bruta.data : hoje,
-    dias: recorrente ? dias : [],
-    criada: typeof bruta.criada === 'string' ? bruta.criada : hoje,
-    concluidas
-  }
-}
-
-function carregarTarefas() {
-  try {
-    const dados = JSON.parse(localStorage.getItem(STORAGE_KEY))
-    return Array.isArray(dados) ? dados.map(normalizar).filter(Boolean) : []
-  } catch {
-    return []
-  }
-}
-
-function salvarTarefas(tarefas) {
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(tarefas))
-    return true
-  } catch {
-    alert('Não foi possível salvar as tarefas no navegador.')
-    return false
-  }
+// Mensagem amigável para falhas da API (rede, validação, sessão).
+function mensagemDe(erro) {
+  return erro?.message || 'Não foi possível concluir a operação. Tente novamente.'
 }
 
 function apareceEm(tarefa, chave) {
@@ -109,7 +67,9 @@ export function iniciarTarefas() {
   const titulo = dialogo.querySelector('#task-dialog-title')
   const subtitulo = dialogo.querySelector('#task-dialog-kicker')
 
-  let tarefas = carregarTarefas()
+  let tarefas = []
+  let carregado = false
+  let erroCarga = ''
   let editando = null
   let tipoAtual = 'unica'
   let diaAtual = chaveData()
@@ -183,7 +143,7 @@ export function iniciarTarefas() {
     if (evento.target === dialogo) fecharPopup()
   })
 
-  form.addEventListener('submit', (evento) => {
+  form.addEventListener('submit', async (evento) => {
     evento.preventDefault()
 
     const texto = campoNome.value.trim()
@@ -205,27 +165,29 @@ export function iniciarTarefas() {
       return
     }
 
-    const anteriores = tarefas
     const virouRecorrente = editando && editando.tipo !== 'recorrente' && tipoAtual === 'recorrente'
+    const criada = !editando || virouRecorrente ? chaveData() : editando.criada
 
-    const dados = {
-      texto,
-      tipo: tipoAtual,
-      data: tipoAtual === 'unica' ? campoData.value : editando?.data ?? chaveData(),
-      dias: tipoAtual === 'recorrente' ? dias : [],
-      criada: !editando || virouRecorrente ? chaveData() : editando.criada
-    }
+    const corpo = { texto, tipo: tipoAtual, criada }
+    if (tipoAtual === 'unica') corpo.data = campoData.value
+    else corpo.dias = dias
 
-    if (editando) {
-      // Atualiza no lugar: a conclusão de cada dia é preservada.
-      tarefas = tarefas.map((t) => (t.id === editando.id ? { ...t, ...dados } : t))
-    } else {
-      tarefas = [...tarefas, { id: crypto.randomUUID(), concluidas: {}, ...dados }]
-    }
+    const botaoSalvar = form.querySelector('[type="submit"]')
+    if (botaoSalvar) botaoSalvar.disabled = true // evita envio duplo enquanto a API responde
 
-    if (!salvarTarefas(tarefas)) {
-      tarefas = anteriores
+    try {
+      if (editando) {
+        // A conclusão de cada dia é preservada pelo servidor.
+        const atualizada = await tarefasApi.atualizar(editando.id, corpo)
+        tarefas = tarefas.map((t) => (t.id === editando.id ? atualizada : t))
+      } else {
+        tarefas = [...tarefas, await tarefasApi.criar(corpo)]
+      }
+    } catch (falha) {
+      erro.textContent = mensagemDe(falha)
       return
+    } finally {
+      if (botaoSalvar) botaoSalvar.disabled = false
     }
 
     fecharPopup()
@@ -234,7 +196,7 @@ export function iniciarTarefas() {
 
   /* ---------- Lista do dia ---------- */
 
-  function excluir(tarefa) {
+  async function excluir(tarefa) {
     if (tarefa.tipo === 'recorrente') {
       const ok = confirm(
         `Excluir a tarefa recorrente "${tarefa.texto}"? Ela deixará de aparecer em todos os dias.`
@@ -242,25 +204,43 @@ export function iniciarTarefas() {
       if (!ok) return false
     }
 
-    const anteriores = tarefas
-    tarefas = tarefas.filter((t) => t.id !== tarefa.id)
-
-    if (!salvarTarefas(tarefas)) {
-      tarefas = anteriores
+    try {
+      await tarefasApi.excluir(tarefa.id)
+    } catch (falha) {
+      mostrarAviso(mensagemDe(falha))
       return false
     }
 
+    tarefas = tarefas.filter((t) => t.id !== tarefa.id)
     renderizar()
     return true
   }
 
-  botaoExcluir.addEventListener('click', () => {
-    if (editando && excluir(editando)) fecharPopup()
+  botaoExcluir.addEventListener('click', async () => {
+    if (editando && (await excluir(editando))) fecharPopup()
   })
 
   function renderizar() {
     diaAtual = chaveData()
     const agora = new Date()
+
+    if (!carregado) {
+      lista.replaceChildren()
+      const aviso = document.createElement('li')
+      aviso.className = 'task-placeholder'
+      aviso.textContent = erroCarga ? `${erroCarga} ` : 'Carregando tarefas...'
+      if (erroCarga) {
+        const tentar = document.createElement('button')
+        tentar.type = 'button'
+        tentar.className = 'link-btn'
+        tentar.textContent = 'Tentar novamente'
+        tentar.addEventListener('click', () => carregar())
+        aviso.append(tentar)
+      }
+      lista.append(aviso)
+      return
+    }
+
     const visiveis = tarefas.filter((t) => apareceEm(t, diaAtual))
     const feitas = visiveis.filter((t) => t.concluidas[diaAtual]).length
 
@@ -300,18 +280,29 @@ export function iniciarTarefas() {
       checkbox.checked = concluida
       checkbox.setAttribute('aria-label', `${concluida ? 'Reabrir' : 'Concluir'} ${tarefa.texto}`)
 
-      checkbox.addEventListener('change', () => {
-        const anteriores = tarefas
-        tarefas = tarefas.map((t) => {
-          if (t.id !== tarefa.id) return t
-          const concluidas = { ...t.concluidas }
-          if (checkbox.checked) concluidas[diaAtual] = true
-          else delete concluidas[diaAtual]
-          return { ...t, concluidas }
-        })
+      checkbox.addEventListener('change', async () => {
+        const marcada = checkbox.checked
+        const dia = diaAtual
 
-        if (!salvarTarefas(tarefas)) tarefas = anteriores
-        renderizar()
+        // Atualização imediata na tela; se a API falhar, só esse dia dessa tarefa volta ao estado anterior.
+        const aplicar = (valor) => {
+          tarefas = tarefas.map((t) => {
+            if (t.id !== tarefa.id) return t
+            const concluidas = { ...t.concluidas }
+            if (valor) concluidas[dia] = true
+            else delete concluidas[dia]
+            return { ...t, concluidas }
+          })
+          renderizar()
+        }
+
+        aplicar(marcada)
+        try {
+          await tarefasApi.concluir(tarefa.id, dia, marcada)
+        } catch (falha) {
+          aplicar(!marcada)
+          mostrarAviso(mensagemDe(falha))
+        }
       })
 
       const corpo = document.createElement('div')
@@ -357,7 +348,9 @@ export function iniciarTarefas() {
       remover.innerHTML = icon('trash')
       remover.title = 'Excluir'
       remover.setAttribute('aria-label', `Excluir ${tarefa.texto}`)
-      remover.addEventListener('click', () => excluir(tarefa))
+      remover.addEventListener('click', () => {
+        excluir(tarefa)
+      })
 
       acoes.append(editar, remover)
       item.append(checkbox, corpo, acoes)
@@ -365,20 +358,33 @@ export function iniciarTarefas() {
     })
   }
 
-  // Normaliza e grava o formato novo (migra tarefas antigas uma única vez).
-  if (tarefas.length) salvarTarefas(tarefas)
+  async function carregar() {
+    try {
+      tarefas = await tarefasApi.listar()
+      carregado = true
+      erroCarga = ''
+    } catch (falha) {
+      erroCarga = `Não foi possível carregar as tarefas (${mensagemDe(falha)}).`
+    }
+    renderizar()
+  }
+
   renderizar()
+  carregar()
 
   // Virada do dia: a lista passa a mostrar as tarefas do novo dia.
   setInterval(() => {
     if (chaveData() !== diaAtual) renderizar()
   }, 30000)
 
-  // Mantém várias abas abertas sincronizadas.
-  window.addEventListener('storage', (evento) => {
-    if (evento.key === STORAGE_KEY) {
-      tarefas = carregarTarefas()
+  // Ao voltar para a aba, traz alterações feitas em outro dispositivo ou aba.
+  document.addEventListener('visibilitychange', async () => {
+    if (document.hidden || !carregado) return
+    try {
+      tarefas = await tarefasApi.listar()
       renderizar()
+    } catch {
+      /* mantém o que já está na tela */
     }
   })
 }

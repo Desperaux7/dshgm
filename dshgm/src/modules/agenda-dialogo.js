@@ -1,12 +1,11 @@
 import { icon } from './icons.js'
-import { chaveData, dataDeChave, novoId } from '../services/storage.js'
+import { chaveData, dataDeChave } from '../services/storage.js'
+import { eventosApi } from '../services/eventosApi.js'
 import {
   CATEGORIAS_EVENTO,
   DIAS_CURTOS,
   DIAS_LONGOS,
-  RECORRENCIAS,
-  carregarEventos,
-  salvarEventos
+  RECORRENCIAS
 } from './agenda-dados.js'
 import { mostrarAviso } from './shell.js'
 
@@ -79,6 +78,7 @@ function template() {
         </label>
 
         <p class="drawer-note" id="ev-series-note" hidden>As alterações valem para toda a série.</p>
+        <p class="drawer-note" id="ev-sync-note" hidden></p>
         <p class="modal-error" id="ev-error" role="alert"></p>
 
         <div class="modal-actions">
@@ -115,6 +115,8 @@ function montar() {
     ate: q('#ev-until'),
     notas: q('#ev-notes'),
     notaSerie: q('#ev-series-note'),
+    notaSync: q('#ev-sync-note'),
+    salvar: q('[type="submit"]'),
     erro: q('#ev-error'),
     excluir: q('#ev-delete'),
     excluirUma: q('#ev-delete-one')
@@ -210,12 +212,41 @@ export function abrirEvento({ evento = null, data = chaveData(), ocorrencia = nu
   refs.excluirUma.hidden = !(recorrente && ocorrencia)
   refs.notaSerie.hidden = !recorrente
 
+  // Situação no Google Calendar (quando conectado) e evento somente leitura.
+  const sync = evento?.sincronizacao
+  const somenteLeitura = Boolean(sync?.somenteLeitura)
+  refs.salvar.disabled = somenteLeitura
+  refs.excluirUma.hidden = refs.excluirUma.hidden || somenteLeitura
+  refs.notaSync.hidden = true
+  if (somenteLeitura) {
+    refs.notaSync.textContent =
+      'Este evento tem uma recorrência do Google Calendar que não pode ser editada aqui. Edite-o no Google Calendar (você ainda pode excluí-lo).'
+    refs.notaSync.hidden = false
+  } else if (sync?.estado === 'error') {
+    refs.notaSync.textContent = `Não sincronizado com o Google Calendar: ${sync.erro ?? 'erro desconhecido'}. Tentaremos de novo.`
+    refs.notaSync.hidden = false
+  } else if (sync?.estado === 'pending') {
+    refs.notaSync.textContent = 'Aguardando envio ao Google Calendar.'
+    refs.notaSync.hidden = false
+  }
+
   atualizarCampos()
   dialogo.showModal()
   refs.titulo.focus()
 }
 
-function salvar(e) {
+// Desabilita os botões de ação enquanto a API responde (evita envio duplo).
+function ocupado(sim) {
+  ;[refs.salvar, refs.excluir, refs.excluirUma].forEach((b) => {
+    b.dataset.ocupado = sim ? '1' : ''
+    if (sim) b.disabled = true
+    else b.disabled = b === refs.salvar && Boolean(contexto?.evento?.sincronizacao?.somenteLeitura)
+  })
+}
+
+const textoErro = (falha) => falha?.message || 'Não foi possível concluir a operação. Tente novamente.'
+
+async function salvar(e) {
   e.preventDefault()
   const { evento, aposMudar } = contexto
 
@@ -251,15 +282,20 @@ function salvar(e) {
     }
   }
 
-  const eventos = carregarEventos()
-  const proximos = evento
-    ? eventos.map((x) => (x.id === evento.id ? { ...x, ...dados, excecoes: x.excecoes.filter((d) => d >= data) } : x))
-    : [...eventos, { id: novoId(), excecoes: [], ...dados }]
-
-  if (!salvarEventos(proximos)) {
-    erro('Não foi possível salvar no navegador.')
+  ocupado(true)
+  try {
+    if (evento) {
+      // Exceções anteriores à nova data de início deixam de fazer sentido.
+      await eventosApi.atualizar(evento.id, { ...dados, excecoes: evento.excecoes.filter((d) => d >= data) })
+    } else {
+      await eventosApi.criar(dados)
+    }
+  } catch (falha) {
+    ocupado(false)
+    erro(textoErro(falha))
     return
   }
+  ocupado(false)
 
   dialogo.close()
   mostrarAviso(evento ? 'Evento atualizado' : 'Evento criado')
@@ -271,7 +307,7 @@ function erro(texto, campo) {
   campo?.focus()
 }
 
-function excluirSerie() {
+async function excluirSerie() {
   const { evento, aposMudar } = contexto
   const recorrente = evento.rec.tipo !== 'nenhuma'
   const pergunta = recorrente
@@ -279,18 +315,29 @@ function excluirSerie() {
     : `Excluir o evento "${evento.titulo}"?`
   if (!confirm(pergunta)) return
 
-  if (!salvarEventos(carregarEventos().filter((x) => x.id !== evento.id))) return erro('Não foi possível salvar no navegador.')
+  ocupado(true)
+  try {
+    await eventosApi.excluir(evento.id)
+  } catch (falha) {
+    ocupado(false)
+    return erro(textoErro(falha))
+  }
+  ocupado(false)
   dialogo.close()
   mostrarAviso('Evento excluído')
   aposMudar()
 }
 
-function excluirOcorrencia() {
+async function excluirOcorrencia() {
   const { evento, ocorrencia, aposMudar } = contexto
-  const proximos = carregarEventos().map((x) =>
-    x.id === evento.id ? { ...x, excecoes: [...new Set([...x.excecoes, ocorrencia])] } : x
-  )
-  if (!salvarEventos(proximos)) return erro('Não foi possível salvar no navegador.')
+  ocupado(true)
+  try {
+    await eventosApi.atualizar(evento.id, { excecoes: [...new Set([...evento.excecoes, ocorrencia])] })
+  } catch (falha) {
+    ocupado(false)
+    return erro(textoErro(falha))
+  }
+  ocupado(false)
   dialogo.close()
   mostrarAviso('Ocorrência excluída')
   aposMudar()

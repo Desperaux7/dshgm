@@ -1,6 +1,7 @@
 import { icon, injetarIcones } from './icons.js'
 import { EVENTO, aplicarPreferencias, fotoPerfil, nomeExibicao } from './preferencias.js'
 import { iniciarPerfil } from './perfil.js'
+import { encerrarSessao } from '../services/conta.js'
 
 const MENU_KEY = 'dashboard-menu'
 
@@ -152,8 +153,14 @@ export function iniciarShell({ pagina }) {
   iniciarPerfil(app, { avisar: mostrarAviso })
   aplicarPreferencias()
 
-  // Ainda não há autenticação/telas de conta: avisa em vez de falhar em silêncio.
-  app.querySelectorAll('[data-action]').forEach((el) => {
-    el.addEventListener('click', () => mostrarAviso('Disponível em breve'))
+  app.querySelector('#logout-btn')?.addEventListener('click', async (e) => {
+    const botao = e.currentTarget
+    botao.disabled = true
+    try {
+      await encerrarSessao()
+    } catch {
+      botao.disabled = false
+      mostrarAviso('Não foi possível sair agora. Tente novamente.')
+    }
   })
 }

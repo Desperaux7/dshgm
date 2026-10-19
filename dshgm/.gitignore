@@ -1,0 +1,23 @@
+# Dependências e builds
+node_modules/
+dist/
+.vite/
+
+# Segredos e ambiente local
+.env
+.env.*
+!.env.example
+
+# Netlify
+.netlify/
+
+# Sistema e editores
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.log
+npm-debug.log*
+
+# Zips de entrega
+*.zip

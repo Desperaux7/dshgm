@@ -985,3 +985,45 @@
     justify-items: center;
   }
 }
+
+/* ---------- Painel do Google Calendar (agenda) ---------- */
+.gcal-panel {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px 20px;
+  margin-bottom: 18px;
+}
+
+.gcal-info {
+  flex: 1 1 280px;
+  min-width: 0;
+}
+
+.gcal-info strong {
+  display: block;
+  font-family: var(--font-display);
+  letter-spacing: 0.01em;
+}
+
+.gcal-info p {
+  margin: 4px 0 0;
+  color: var(--muted);
+  font-size: 0.86rem;
+  line-height: 1.45;
+}
+
+.gcal-info .gcal-aviso {
+  color: #fbbf24;
+}
+
+.gcal-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.gcal-actions a.btn {
+  text-decoration: none;
+}

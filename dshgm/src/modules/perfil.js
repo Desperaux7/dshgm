@@ -13,6 +13,8 @@ import {
   restaurarPadroes
 } from './preferencias.js'
 import { buscarCidade } from './weather.js'
+import { usuarioLogado } from '../services/api.js'
+import { encerrarSessao } from '../services/conta.js'
 
 /* Painel lateral direito: perfil, aparência, preferências e cartões da página inicial.
    Abre pelo avatar do canto superior direito e salva cada alteração na hora. */
@@ -64,6 +66,13 @@ function templateDrawer() {
       </header>
 
       <div class="drawer-body">
+        <section class="drawer-section" aria-labelledby="sec-conta">
+          <h3 id="sec-conta">Conta</h3>
+          <p class="drawer-note" id="conta-email"></p>
+          <button class="btn btn-sm" id="conta-sair" type="button">Sair da conta</button>
+          <p class="drawer-note" id="conta-nota" role="status"></p>
+        </section>
+
         <section class="drawer-section" aria-labelledby="sec-perfil">
           <h3 id="sec-perfil">Perfil</h3>
           <div class="profile-edit">
@@ -165,6 +174,18 @@ export function iniciarPerfil(app, { avisar }) {
   const fotoInput = drawer.querySelector('#profile-photo-input')
   const fotoRemover = drawer.querySelector('#profile-photo-remove')
   const nota = drawer.querySelector('#profile-note')
+
+  /* ---------- Conta ---------- */
+
+  drawer.querySelector('#conta-email').textContent = usuarioLogado()?.email ?? ''
+  drawer.querySelector('#conta-sair').addEventListener('click', async () => {
+    const notaConta = drawer.querySelector('#conta-nota')
+    try {
+      await encerrarSessao()
+    } catch {
+      notaConta.textContent = 'Não foi possível sair agora. Tente novamente.'
+    }
+  })
 
   /* ---------- Avatar (canto superior e painel) ---------- */
 

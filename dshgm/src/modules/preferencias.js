@@ -1,7 +1,9 @@
 import { perfil } from '../config.js'
 import { lerJSON, salvarJSON } from '../services/storage.js'
+import { api } from '../services/api.js'
 
 const CHAVE = 'dashboard-preferencias'
+const CHAVE_PENDENTE = 'dashboard-preferencias-pendente'
 export const EVENTO = 'preferencias-alteradas'
 
 export const DESTAQUES = [
@@ -48,12 +50,19 @@ let atuais = mesclar(lerJSON(CHAVE, null))
 
 export const lerPreferencias = () => atuais
 
+// Dados da conta Google: usados só como padrão quando o usuário não definiu nome/foto nas preferências.
+let externo = { nome: '', foto: null }
+
+export function definirUsuarioExterno({ nome, foto }) {
+  externo = { nome: String(nome ?? '').trim().split(/\s+/)[0] ?? '', foto: foto ?? null }
+}
+
 export function nomeExibicao() {
-  return atuais.nome.trim() || perfil.nome
+  return atuais.nome.trim() || externo.nome || perfil.nome
 }
 
 export function fotoPerfil() {
-  return atuais.foto || perfil.avatar || null
+  return atuais.foto || externo.foto || perfil.avatar || null
 }
 
 /* ---------- Aplicação no documento ---------- */
@@ -84,18 +93,85 @@ export function atualizarPreferencias(parcial) {
   atuais = proximas
   aplicarPreferencias(atuais)
   window.dispatchEvent(new CustomEvent(EVENTO, { detail: atuais }))
+  agendarEnvio(parcial)
   return salvou
 }
 
 export function restaurarPadroes() {
-  try {
-    localStorage.removeItem(CHAVE)
-  } catch {
-    /* sem armazenamento: apenas volta ao padrão na sessão */
-  }
   atuais = mesclar(null)
+  salvarJSON(CHAVE, atuais)
   aplicarPreferencias(atuais)
   window.dispatchEvent(new CustomEvent(EVENTO, { detail: atuais }))
+  agendarEnvio(atuais) // sobrescreve também na conta (nome vazio e foto removida)
+}
+
+/* ---------- Sincronização com a conta ---------- */
+
+// As alterações valem na hora (cache local) e são enviadas à conta logo depois, agrupadas.
+// Se o envio falhar, ficam marcadas como pendentes e são reenviadas no próximo carregamento.
+let fila = {}
+let temporizador = null
+
+function juntar(base, novo) {
+  return {
+    ...base,
+    ...novo,
+    ...(novo.clima || base.clima ? { clima: { ...(base.clima ?? {}), ...(novo.clima ?? {}) } } : {}),
+    ...(novo.cartoes || base.cartoes ? { cartoes: { ...(base.cartoes ?? {}), ...(novo.cartoes ?? {}) } } : {})
+  }
+}
+
+function agendarEnvio(parcial) {
+  fila = juntar(fila, parcial)
+  try {
+    localStorage.setItem(CHAVE_PENDENTE, '1')
+  } catch {
+    /* sem armazenamento: segue sem marca de pendência */
+  }
+  clearTimeout(temporizador)
+  temporizador = setTimeout(enviarFila, 600)
+}
+
+async function enviarFila() {
+  const corpo = fila
+  fila = {}
+  try {
+    await api.patch('/preferencias', corpo)
+    if (!Object.keys(fila).length) localStorage.removeItem(CHAVE_PENDENTE)
+  } catch (erro) {
+    fila = juntar(corpo, fila) // mantém para a próxima tentativa
+    console.warn('Preferências salvas só neste navegador por enquanto:', erro.message)
+  }
+}
+
+// Envia na saída da página o que ainda estiver na fila (best effort).
+window.addEventListener('pagehide', () => {
+  if (!Object.keys(fila).length) return
+  clearTimeout(temporizador)
+  enviarFila()
+})
+
+function aplicarEstado(proximas) {
+  atuais = mesclar(proximas)
+  salvarJSON(CHAVE, atuais)
+  aplicarPreferencias(atuais)
+  window.dispatchEvent(new CustomEvent(EVENTO, { detail: atuais }))
+}
+
+// Chamado após o login: reenvia pendências de uma sessão anterior e traz as preferências da conta.
+export async function sincronizarComServidor() {
+  const pendente = localStorage.getItem(CHAVE_PENDENTE) !== null
+  if (pendente) {
+    try {
+      await api.patch('/preferencias', atuais)
+      localStorage.removeItem(CHAVE_PENDENTE)
+    } catch {
+      return // sem conexão: continua com o cache local, tenta de novo na próxima vez
+    }
+  }
+  const { preferencias } = await api.get('/preferencias')
+  const { foto, ...resto } = preferencias ?? {}
+  if (Object.keys(resto).length || foto) aplicarEstado(preferencias)
 }
 
 // Várias abas abertas permanecem sincronizadas.

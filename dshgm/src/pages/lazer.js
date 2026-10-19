@@ -3,17 +3,15 @@ import '../styles/paginas.css'
 
 import { icon } from '../modules/icons.js'
 import { iniciarShell, mostrarAviso } from '../modules/shell.js'
-import { novoId } from '../services/storage.js'
-import { excluirCapa, redimensionarImagem, salvarCapa } from '../services/imagens.js'
+import { redimensionarImagem } from '../services/imagens.js'
+import { lazerApi } from '../services/lazerApi.js'
 import {
-  CHAVE_LAZER,
   STATUS,
   TIPOS,
   aplicarRegras,
   capaHorizontal,
   carregarItens,
   esquecerCapa,
-  salvarItens,
   statusDe,
   tipoDe,
   urlDaCapa
@@ -29,7 +27,9 @@ const filtrosTipo = $('#lib-types')
 const filtrosStatus = $('#lib-status')
 const lista = $('#lib-list')
 
-let itens = carregarItens()
+let itens = []
+let carregado = false
+let erroCarga = ''
 let filtroTipo = 'todos'
 let filtroStatus = 'todos'
 let editando = null
@@ -37,13 +37,17 @@ let editando = null
 const normalizarTexto = (t) => t.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
 const reduzirMovimento = window.matchMedia('(prefers-reduced-motion: reduce)')
 
-function gravar(proximos) {
-  if (!salvarItens(proximos)) {
-    alert('Não foi possível salvar a biblioteca no navegador.')
-    return false
+const textoErro = (erro) => erro?.message || 'Não foi possível concluir a operação. Tente novamente.'
+
+async function carregar() {
+  try {
+    itens = await carregarItens()
+    carregado = true
+    erroCarga = ''
+  } catch (falha) {
+    erroCarga = `Não foi possível carregar a biblioteca (${textoErro(falha)}).`
   }
-  itens = proximos
-  return true
+  renderizar()
 }
 
 /* ---------- Capa ---------- */
@@ -132,12 +136,17 @@ function ordenar(lista) {
 
 /* ---------- Cartões ---------- */
 
+// Atualização imediata na tela (mesmas regras do servidor); se a API falhar, recarrega o estado real da conta.
 function atualizarItem(id, mudancas, alterado) {
-  const proximos = itens.map((i) =>
+  itens = itens.map((i) =>
     i.id === id ? aplicarRegras({ ...i, ...mudancas, atualizado: Date.now() }, alterado) : i
   )
-  if (!gravar(proximos)) return false
   renderizar()
+
+  lazerApi.atualizar(id, mudancas).catch(async (falha) => {
+    mostrarAviso(textoErro(falha))
+    await carregar()
+  })
   return true
 }
 
@@ -237,7 +246,17 @@ function criarCartao(item) {
 function mensagemVazia() {
   const caixa = document.createElement('div')
   caixa.className = 'empty-state'
-  if (itens.length === 0) {
+  if (!carregado) {
+    caixa.textContent = erroCarga || 'Carregando...'
+    if (erroCarga) {
+      const tentar = document.createElement('button')
+      tentar.type = 'button'
+      tentar.className = 'btn btn-sm'
+      tentar.textContent = 'Tentar novamente'
+      tentar.addEventListener('click', carregar)
+      caixa.append(document.createElement('br'), tentar)
+    }
+  } else if (itens.length === 0) {
     caixa.innerHTML = '<strong>Sua biblioteca está vazia</strong>Adicione jogos, filmes e séries para montar seu backlog.'
     const botao = document.createElement('button')
     botao.type = 'button'
@@ -395,11 +414,29 @@ function mostrarPrevia(url) {
 }
 previaCapa.addEventListener('load', () => zonaCapa.classList.toggle('is-wide', previaCapa.naturalWidth > previaCapa.naturalHeight * 1.2))
 
+// O servidor aceita capas de até 600 KB: tenta qualidade/tamanho decrescentes até caber.
+const TENTATIVAS_CAPA = [
+  { lado: 920, qualidade: 0.86 },
+  { lado: 800, qualidade: 0.74 },
+  { lado: 640, qualidade: 0.66 },
+  { lado: 480, qualidade: 0.6 }
+]
+const LIMITE_CAPA = 550 * 1024
+
+async function prepararCapa(arquivo) {
+  let ultimo
+  for (const { lado, qualidade } of TENTATIVAS_CAPA) {
+    ultimo = await redimensionarImagem(arquivo, { largura: lado, altura: lado, modo: 'conter', qualidade })
+    if (ultimo.blob.size <= LIMITE_CAPA) return ultimo
+  }
+  throw new Error('Esta imagem ficou grande demais mesmo reduzida. Escolha outra.')
+}
+
 async function receberArquivo(arquivo) {
   if (!arquivo) return
   erro.textContent = ''
   try {
-    const resultado = await redimensionarImagem(arquivo, { largura: 920, altura: 920, modo: 'conter', qualidade: 0.86 })
+    const resultado = await prepararCapa(arquivo)
     capaPendente = resultado
     mostrarPrevia(URL.createObjectURL(resultado.blob))
   } catch (e) {
@@ -482,50 +519,63 @@ form.addEventListener('submit', async (e) => {
     return
   }
 
-  const id = editando?.id ?? novoId()
-  let capa = editando?.capa ?? null
+  // Status e progresso coerentes entre si, como sempre foi no formulário.
+  const base = aplicarRegras(
+    {
+      tipo: tipoAtual,
+      titulo,
+      plataforma: campoPlataforma.value.trim(),
+      status: estadoAtual,
+      progresso: tipoAtual === 'jogo' ? Number(campoProgresso.value) : 0
+    },
+    'progresso'
+  )
 
+  const botaoSalvar = form.querySelector('[type="submit"]')
+  if (botaoSalvar) botaoSalvar.disabled = true // evita envio duplo enquanto a API responde
+
+  const novo = !editando
+  let item
   try {
-    if (capaPendente === 'remover') {
-      await excluirCapa(id)
-      esquecerCapa(id)
-      capa = null
-    } else if (capaPendente) {
-      await salvarCapa(id, capaPendente.blob)
-      capa = { largura: capaPendente.largura, altura: capaPendente.altura, versao: Date.now() }
-    }
+    item = editando ? await lazerApi.atualizar(editando.id, base) : await lazerApi.criar(base)
   } catch (falha) {
-    erro.textContent = falha.message || 'Não foi possível salvar a capa.'
+    erro.textContent = textoErro(falha)
+    if (botaoSalvar) botaoSalvar.disabled = false
     return
   }
 
-  const dados = {
-    tipo: tipoAtual,
-    titulo,
-    plataforma: campoPlataforma.value.trim(),
-    status: estadoAtual,
-    progresso: tipoAtual === 'jogo' ? Number(campoProgresso.value) : 0,
-    capa,
-    atualizado: Date.now()
+  // A capa vai depois do item (precisa do id da conta). Se falhar, o item já está salvo.
+  let avisoCapa = ''
+  try {
+    if (capaPendente === 'remover') {
+      if (item.capa) item = await lazerApi.removerCapa(item.id)
+      esquecerCapa(item.id)
+    } else if (capaPendente) {
+      item = await lazerApi.enviarCapa(item.id, capaPendente.blob, capaPendente)
+      esquecerCapa(item.id)
+    }
+  } catch (falha) {
+    avisoCapa = `O item foi salvo, mas a capa não foi enviada: ${textoErro(falha)}`
   }
 
-  const proximos = editando
-    ? itens.map((i) => (i.id === id ? aplicarRegras({ ...i, ...dados }, 'progresso') : i))
-    : [...itens, aplicarRegras({ id, criado: Date.now(), ...dados }, 'progresso')]
+  itens = novo ? [...itens, item] : itens.map((i) => (i.id === item.id ? item : i))
+  if (botaoSalvar) botaoSalvar.disabled = false
 
-  if (!gravar(proximos)) return
-
-  const novo = !editando
   fecharPopup()
   renderizar()
-  mostrarAviso(novo ? 'Item adicionado' : 'Item atualizado')
+  mostrarAviso(avisoCapa || (novo ? 'Item adicionado' : 'Item atualizado'))
 })
 
 async function excluir(item) {
   if (!confirm(`Excluir "${item.titulo}" da biblioteca?`)) return false
-  if (!gravar(itens.filter((i) => i.id !== item.id))) return false
+  try {
+    await lazerApi.excluir(item.id)
+  } catch (falha) {
+    mostrarAviso(textoErro(falha))
+    return false
+  }
+  itens = itens.filter((i) => i.id !== item.id)
   esquecerCapa(item.id)
-  excluirCapa(item.id).catch(() => {})
   renderizar()
   mostrarAviso('Item excluído')
   return true
@@ -636,12 +686,16 @@ botaoComecar.addEventListener('click', () => {
   mostrarAviso(`Boa diversão com "${sorteado.titulo}"`)
 })
 
-// Mantém várias abas sincronizadas.
-window.addEventListener('storage', (e) => {
-  if (e.key === CHAVE_LAZER) {
-    itens = carregarItens()
+// Ao voltar para a aba, traz alterações feitas em outro dispositivo ou aba.
+document.addEventListener('visibilitychange', async () => {
+  if (document.hidden || !carregado) return
+  try {
+    itens = await carregarItens()
     renderizar()
+  } catch {
+    /* mantém o que já está na tela */
   }
 })
 
 renderizar()
+carregar()

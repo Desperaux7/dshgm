@@ -1,6 +1,8 @@
 
 const CLIENT_ID = "d19f491f9be4486aaa3210d1b762697f";
-const REDIRECT_URI = "http://127.0.0.1:5173/callback";
+// Segue a origem atual: 127.0.0.1:5173 em desenvolvimento e o domínio HTTPS em produção.
+// Cada valor precisa estar cadastrado nas "Redirect URIs" do app no painel do Spotify.
+const REDIRECT_URI = `${window.location.origin}/callback`;
 
 const SCOPES = [
   "streaming",

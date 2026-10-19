@@ -1,7 +1,6 @@
 import { icon } from './icons.js'
 import { chaveData, dataDeChave } from '../services/storage.js'
 import {
-  CHAVE_AGENDA,
   MESES_CURTOS,
   carregarEventos,
   categoriaDe,
@@ -11,6 +10,7 @@ import {
   rotuloDia
 } from './agenda-dados.js'
 import { abrirEvento } from './agenda-dialogo.js'
+import { calendarioApi, mudouAgenda } from '../services/calendarioApi.js'
 
 /* ---------- Agenda na página inicial ---------- */
 
@@ -21,8 +21,10 @@ export function iniciarAgendaInicio() {
   const botaoNovo = document.querySelector('#agenda-add')
   if (!lista) return
 
+  let eventos = []
+
   function renderizar() {
-    const proximas = proximasOcorrencias(carregarEventos(), { limite: 4 })
+    const proximas = proximasOcorrencias(eventos, { limite: 4 })
 
     if (tituloProximo && quandoProximo) {
       if (proximas.length) {
@@ -70,18 +72,39 @@ export function iniciarAgendaInicio() {
       corpo.append(titulo, meta)
 
       botao.append(dia, corpo)
-      botao.addEventListener('click', () => abrirEvento({ evento, ocorrencia: data, aposMudar: renderizar }))
+      botao.addEventListener('click', () => abrirEvento({ evento, ocorrencia: data, aposMudar: carregar }))
       item.append(botao)
       lista.append(item)
     })
   }
 
-  botaoNovo?.addEventListener('click', () => abrirEvento({ data: chaveData(), aposMudar: renderizar }))
+  botaoNovo?.addEventListener('click', () => abrirEvento({ data: chaveData(), aposMudar: carregar }))
 
-  renderizar()
-  window.addEventListener('storage', (e) => {
-    if (e.key === CHAVE_AGENDA) renderizar()
+  async function carregar() {
+    try {
+      eventos = await carregarEventos()
+    } catch {
+      /* sem resposta: mantém o que já está na tela */
+    }
+    renderizar()
+  }
+
+  // Sincroniza com o Google Calendar em segundo plano (o servidor limita a 1x a cada 30 s).
+  async function sincronizarSilencioso() {
+    try {
+      if (mudouAgenda(await calendarioApi.sincronizar(false))) await carregar()
+    } catch {
+      /* a agenda segue funcionando com o que já está salvo */
+    }
+  }
+
+  carregar().then(sincronizarSilencioso)
+
+  // Ao voltar para a aba, traz alterações feitas em outro dispositivo, aba ou no Google Calendar.
+  document.addEventListener('visibilitychange', () => {
+    if (!document.hidden) carregar().then(sincronizarSilencioso)
   })
+
   // Passagem do tempo: eventos de hoje que terminam saem da lista.
   setInterval(renderizar, 60000)
 }

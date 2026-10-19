@@ -7,7 +7,7 @@ import { iniciarPesquisaGoogle } from '../modules/google-search.js'
 import { iniciarAtalhos } from '../modules/favoritos.js'
 import { iniciarAgendaInicio } from '../modules/agenda.js'
 import { EVENTO, nomeExibicao } from '../modules/preferencias.js'
-import { lerJSON } from '../services/storage.js'
+import { financeiroApi } from '../services/financeiroApi.js'
 
 // O shell injeta o menu lateral, o sprite de ícones, a conta e o painel de perfil.
 iniciarShell({ pagina: 'inicio' })
@@ -50,26 +50,27 @@ function iniciarSaudacao() {
 
 iniciarSaudacao()
 
-// Saldo do mês atual, calculado a partir dos dados da tela financeira.
-function iniciarSaldoDoMes() {
+// Saldo do mês atual: calculado pelo servidor a partir das movimentações da conta
+// (receitas − despesas − guardado, a mesma regra da tela Financeiro).
+async function iniciarSaldoDoMes() {
   const elemento = document.querySelector('#month-balance')
   if (!elemento) return
 
-  const dados = lerJSON('dashboard-financeiro', null)
-  if (!Array.isArray(dados) || dados.length === 0) return
-
   const agora = new Date()
-  const prefixo = `${agora.getFullYear()}-${String(agora.getMonth() + 1).padStart(2, '0')}`
+  const mes = `${agora.getFullYear()}-${String(agora.getMonth() + 1).padStart(2, '0')}`
 
-  const saldo = dados
-    .filter((item) => typeof item.date === 'string' && item.date.startsWith(prefixo))
-    .reduce((total, item) => total + (item.type === 'income' ? item.amount : -item.amount), 0)
+  try {
+    const resumo = await financeiroApi.resumo(mes)
+    if (!resumo.entradas && !resumo.despesas && !resumo.guardado) return // sem movimentações: mantém o valor inicial
 
-  elemento.textContent = new Intl.NumberFormat('pt-BR', {
-    style: 'currency',
-    currency: 'BRL'
-  }).format(saldo)
-  elemento.classList.toggle('is-negative', saldo < 0)
+    elemento.textContent = new Intl.NumberFormat('pt-BR', {
+      style: 'currency',
+      currency: 'BRL'
+    }).format(resumo.saldo)
+    elemento.classList.toggle('is-negative', resumo.saldo < 0)
+  } catch {
+    /* sem resposta do servidor: mantém o valor inicial */
+  }
 }
 
 iniciarSaldoDoMes()

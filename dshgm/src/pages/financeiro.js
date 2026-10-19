@@ -4,11 +4,9 @@ import '../styles/financeiro.css'
 import { icon } from '../modules/icons.js'
 import { iniciarShell, mostrarAviso } from '../modules/shell.js'
 import { baixarArquivo, gerarRelatorioFinanceiro, nomeArquivoFinanceiro } from '../modules/financeiro-pdf.js'
+import { financeiroApi } from '../services/financeiroApi.js'
 
 iniciarShell({ pagina: 'financeiro' })
-
-const STORAGE_KEY = 'dashboard-financeiro'
-const GOAL_KEY = 'dashboard-metas'
 
 // Tipos: expense (despesa), income (receita), saving (dinheiro guardado)
 const CATEGORIAS = {
@@ -102,58 +100,52 @@ function emptyMessage(text) {
 
 dateInput.value = getToday()
 
-/* ---------- Armazenamento ---------- */
+/* ---------- Dados da conta (API) ---------- */
 
-function loadTransactions() {
+let transactions = []
+let goal = null
+let loaded = false
+let loadError = ''
+
+function errorText(error) {
+  return error?.message || 'Não foi possível concluir a operação. Tente novamente.'
+}
+
+async function loadData() {
   try {
-    const saved = localStorage.getItem(STORAGE_KEY)
-    const transactions = saved ? JSON.parse(saved) : []
-
-    return Array.isArray(transactions) ? transactions : []
+    const [list, savedGoal] = await Promise.all([financeiroApi.listar(), financeiroApi.obterMeta()])
+    transactions = list
+    goal = savedGoal
+    loaded = true
+    loadError = ''
   } catch (error) {
-    console.error('Erro ao carregar movimentações:', error)
-    return []
+    loadError = `Não foi possível carregar os dados (${errorText(error)}).`
   }
+  renderAll()
 }
 
-let transactions = loadTransactions()
+function renderLoading() {
+  ;[balanceElement, incomeElement, expenseElement, savedElement].forEach((el) => {
+    el.textContent = '—'
+    el.classList.remove('is-negative')
+  })
+  countElement.textContent = ''
+  exportButton.disabled = true
 
-function saveTransactions() {
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(transactions))
-    return true
-  } catch (error) {
-    console.error('Erro ao salvar movimentações:', error)
-    alert('Não foi possível salvar os dados no navegador.')
-    return false
+  const text = loadError || 'Carregando...'
+  categoryChart.replaceChildren(emptyMessage(text))
+  goalChart.replaceChildren(emptyMessage(text))
+  listElement.replaceChildren(emptyMessage(text))
+
+  if (loadError) {
+    const retry = document.createElement('button')
+    retry.type = 'button'
+    retry.className = 'btn btn-sm'
+    retry.textContent = 'Tentar novamente'
+    retry.addEventListener('click', loadData)
+    listElement.append(retry)
   }
 }
-
-function loadGoal() {
-  try {
-    const goal = JSON.parse(localStorage.getItem(GOAL_KEY))
-    const valid =
-      goal && Number(goal.valor) > 0 && /^\d{4}-\d{2}$/.test(goal.prazo ?? '')
-
-    return valid ? { nome: goal.nome ?? '', valor: Number(goal.valor), prazo: goal.prazo } : null
-  } catch {
-    return null
-  }
-}
-
-function saveGoal(goal) {
-  try {
-    if (goal) localStorage.setItem(GOAL_KEY, JSON.stringify(goal))
-    else localStorage.removeItem(GOAL_KEY)
-    return true
-  } catch (error) {
-    console.error('Erro ao salvar meta:', error)
-    alert('Não foi possível salvar a meta no navegador.')
-    return false
-  }
-}
-
-let goal = loadGoal()
 
 /* ---------- Filtro por mês/ano ---------- */
 
@@ -478,7 +470,7 @@ goalDialog.addEventListener('click', (event) => {
   if (event.target === goalDialog) goalDialog.close()
 })
 
-goalForm.addEventListener('submit', (event) => {
+goalForm.addEventListener('submit', async (event) => {
   event.preventDefault()
 
   const valor = Number(goalTarget.value)
@@ -497,17 +489,31 @@ goalForm.addEventListener('submit', (event) => {
   }
 
   const next = { nome: goalName.value.trim(), valor: Math.round(valor * 100) / 100, prazo }
+  const submit = goalForm.querySelector('[type="submit"]')
+  if (submit) submit.disabled = true
 
-  if (!saveGoal(next)) return
+  try {
+    goal = await financeiroApi.salvarMeta(next)
+  } catch (error) {
+    goalError.textContent = errorText(error)
+    return
+  } finally {
+    if (submit) submit.disabled = false
+  }
 
-  goal = next
   goalDialog.close()
   renderGoal()
 })
 
-goalDelete.addEventListener('click', () => {
+goalDelete.addEventListener('click', async () => {
   if (!confirm('Remover a meta financeira? O dinheiro guardado continua registrado.')) return
-  if (!saveGoal(null)) return
+
+  try {
+    await financeiroApi.removerMeta()
+  } catch (error) {
+    goalError.textContent = errorText(error)
+    return
+  }
 
   goal = null
   goalDialog.close()
@@ -578,19 +584,22 @@ function renderTransactions(list) {
     deleteButton.title = 'Excluir'
     deleteButton.setAttribute('aria-label', `Excluir ${transaction.description}`)
 
-    deleteButton.addEventListener('click', () => {
+    deleteButton.addEventListener('click', async () => {
       const confirmed = confirm(`Deseja excluir "${transaction.description}"?`)
 
       if (!confirmed) return
 
-      const previousTransactions = transactions
-      transactions = transactions.filter((entry) => entry.id !== transaction.id)
-
-      if (saveTransactions()) {
-        renderAll()
-      } else {
-        transactions = previousTransactions
+      deleteButton.disabled = true
+      try {
+        await financeiroApi.excluir(transaction.id)
+      } catch (error) {
+        deleteButton.disabled = false
+        mostrarAviso(errorText(error))
+        return
       }
+
+      transactions = transactions.filter((entry) => entry.id !== transaction.id)
+      renderAll()
     })
 
     right.append(value, deleteButton)
@@ -632,6 +641,11 @@ exportButton.addEventListener('click', () => {
 function renderAll() {
   fillPeriodSelects()
 
+  if (!loaded) {
+    renderLoading()
+    return
+  }
+
   const list = transactions.filter(inPeriod)
 
   updateExportButton(list)
@@ -651,7 +665,7 @@ filterButtons.forEach((button) =>
   })
 )
 
-form.addEventListener('submit', (event) => {
+form.addEventListener('submit', async (event) => {
   event.preventDefault()
 
   const description = descriptionInput.value.trim()
@@ -663,21 +677,26 @@ form.addEventListener('submit', (event) => {
     return
   }
 
-  const transaction = {
-    id: crypto.randomUUID(),
-    type: typeInput.value,
-    description,
-    category: categoryInput.value,
-    amount: Math.round(amount * 100) / 100,
-    date
+  const submit = form.querySelector('[type="submit"]')
+  if (submit) submit.disabled = true // evita envio duplo enquanto a API responde
+
+  let transaction
+  try {
+    transaction = await financeiroApi.criar({
+      type: typeInput.value,
+      description,
+      category: categoryInput.value,
+      amount: Math.round(amount * 100) / 100,
+      date
+    })
+  } catch (error) {
+    mostrarAviso(errorText(error))
+    return
+  } finally {
+    if (submit) submit.disabled = false
   }
 
   transactions.push(transaction)
-
-  if (!saveTransactions()) {
-    transactions.pop()
-    return
-  }
 
   // Se a data registrada está fora do período filtrado, mostra o período dela.
   if (!inPeriod(transaction)) {
@@ -694,5 +713,19 @@ form.addEventListener('submit', (event) => {
   descriptionInput.focus()
 })
 
+// Ao voltar para a aba, traz alterações feitas em outro dispositivo ou aba.
+document.addEventListener('visibilitychange', async () => {
+  if (document.hidden || !loaded) return
+  try {
+    const [list, savedGoal] = await Promise.all([financeiroApi.listar(), financeiroApi.obterMeta()])
+    transactions = list
+    goal = savedGoal
+    renderAll()
+  } catch {
+    /* mantém o que já está na tela */
+  }
+})
+
 setType('expense')
 renderAll()
+loadData()

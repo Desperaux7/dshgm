@@ -1,12 +1,11 @@
 import '../styles/main.css'
 import '../styles/paginas.css'
 
-import { iniciarShell } from '../modules/shell.js'
+import { iniciarShell, mostrarAviso } from '../modules/shell.js'
 import { icon } from '../modules/icons.js'
 import { EVENTO, lerPreferencias } from '../modules/preferencias.js'
 import { chaveData, dataDeChave, somarDias } from '../services/storage.js'
 import {
-  CHAVE_AGENDA,
   DIAS_CURTOS,
   DIAS_LONGOS,
   MESES_LONGOS,
@@ -17,6 +16,7 @@ import {
   eventosDoDia
 } from '../modules/agenda-dados.js'
 import { abrirEvento } from '../modules/agenda-dialogo.js'
+import { iniciarPainelGoogle } from '../modules/agenda-google.js'
 
 iniciarShell({ pagina: 'agenda' })
 
@@ -27,7 +27,7 @@ const tituloDia = document.querySelector('#day-title')
 const kickerDia = document.querySelector('#day-kicker')
 const listaDia = document.querySelector('#day-list')
 
-let eventos = carregarEventos()
+let eventos = []
 let selecionado = chaveData()
 let visivel = { ano: Number(selecionado.slice(0, 4)), mes: Number(selecionado.slice(5, 7)) } // mes: 1-12
 
@@ -234,18 +234,18 @@ function renderizar() {
   renderizarDia()
 }
 
-function recarregar(dataNova) {
-  eventos = carregarEventos()
+async function recarregar(dataNova) {
   if (typeof dataNova === 'string' && dataNova) {
     selecionado = dataNova
     visivel = { ano: Number(dataNova.slice(0, 4)), mes: Number(dataNova.slice(5, 7)) }
   }
+  try {
+    eventos = await carregarEventos()
+  } catch (falha) {
+    mostrarAviso(falha?.message || 'Não foi possível carregar a agenda.')
+  }
   renderizar()
 }
-
-window.addEventListener('storage', (e) => {
-  if (e.key === CHAVE_AGENDA) recarregar()
-})
 
 // Mudar o início da semana nas preferências redesenha o calendário.
 window.addEventListener(EVENTO, () => {
@@ -253,5 +253,12 @@ window.addEventListener(EVENTO, () => {
   renderizar()
 })
 
+// Ao voltar para a aba, traz alterações feitas em outro dispositivo ou aba.
+document.addEventListener('visibilitychange', () => {
+  if (!document.hidden) recarregar()
+})
+
 renderizarCabecalho()
 renderizar()
+recarregar()
+iniciarPainelGoogle({ aoSincronizar: () => recarregar() })

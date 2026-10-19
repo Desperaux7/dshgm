@@ -1,6 +1,5 @@
-import { lerJSON, salvarJSON, chaveData, dataDeChave, somarDias, novoId } from '../services/storage.js'
-
-export const CHAVE_AGENDA = 'dashboard-agenda'
+import { chaveData, dataDeChave, somarDias } from '../services/storage.js'
+import { eventosApi } from '../services/eventosApi.js'
 
 export const CATEGORIAS_EVENTO = [
   { id: 'pessoal', nome: 'Pessoal', cor: '#5eead4' },
@@ -35,46 +34,13 @@ export const categoriaDe = (id) => CATEGORIAS_EVENTO.find((c) => c.id === id) ??
     diaInteiro, inicio: 'HH:MM', fim: 'HH:MM',
     categoria, notas,
     rec: { tipo, dias: [0..6], ate: 'AAAA-MM-DD' | '' },   // dias: só para "semanal"
-    excecoes: ['AAAA-MM-DD']                  // ocorrências excluídas individualmente
+    excecoes: ['AAAA-MM-DD'],                 // ocorrências excluídas individualmente
+    sincronizacao: { estado, erro, somenteLeitura }   // situação no Google Calendar (vem do servidor)
   }
 */
 
-const horaValida = (h) => typeof h === 'string' && /^([01]\d|2[0-3]):[0-5]\d$/.test(h)
-const dataValida = (d) => typeof d === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(d)
-
-function normalizar(bruto) {
-  if (!bruto || typeof bruto.titulo !== 'string' || !dataValida(bruto.data)) return null
-
-  const tipo = RECORRENCIAS.some((r) => r.id === bruto.rec?.tipo) ? bruto.rec.tipo : 'nenhuma'
-  const diaInteiro = Boolean(bruto.diaInteiro) || !horaValida(bruto.inicio)
-
-  return {
-    id: bruto.id ?? novoId(),
-    titulo: bruto.titulo,
-    data: bruto.data,
-    diaInteiro,
-    inicio: diaInteiro ? '' : bruto.inicio,
-    fim: !diaInteiro && horaValida(bruto.fim) ? bruto.fim : '',
-    categoria: CATEGORIAS_EVENTO.some((c) => c.id === bruto.categoria) ? bruto.categoria : 'pessoal',
-    notas: typeof bruto.notas === 'string' ? bruto.notas : '',
-    rec: {
-      tipo,
-      dias:
-        tipo === 'semanal' && Array.isArray(bruto.rec?.dias)
-          ? [...new Set(bruto.rec.dias.filter((d) => Number.isInteger(d) && d >= 0 && d <= 6))].sort()
-          : [],
-      ate: tipo !== 'nenhuma' && dataValida(bruto.rec?.ate) ? bruto.rec.ate : ''
-    },
-    excecoes: Array.isArray(bruto.excecoes) ? bruto.excecoes.filter(dataValida) : []
-  }
-}
-
-export function carregarEventos() {
-  const dados = lerJSON(CHAVE_AGENDA, [])
-  return Array.isArray(dados) ? dados.map(normalizar).filter(Boolean) : []
-}
-
-export const salvarEventos = (lista) => salvarJSON(CHAVE_AGENDA, lista)
+// Eventos da conta (o servidor valida, normaliza e propaga ao Google Calendar quando conectado).
+export const carregarEventos = () => eventosApi.listar()
 
 /* ---------- Recorrência ---------- */
 

@@ -5,14 +5,13 @@ import { icon } from '../modules/icons.js'
 import { iniciarShell, mostrarAviso } from '../modules/shell.js'
 import {
   CATEGORIAS_PADRAO,
-  CHAVE_FAVORITOS,
   carregarFavoritos,
   categoriasEm,
   criarIconeSite,
   hostDe,
-  normalizarURL,
-  salvarFavoritos
+  normalizarURL
 } from '../modules/favoritos.js'
+import { favoritosApi } from '../services/favoritosApi.js'
 
 iniciarShell({ pagina: 'favoritos' })
 
@@ -33,22 +32,28 @@ const botaoExcluir = document.querySelector('#fav-delete')
 
 const NOVA = '__nova__'
 
-let favoritos = carregarFavoritos()
+let favoritos = []
+let carregado = false
+let erroCarga = ''
 let categoriaAtiva = 'todas'
 let editando = null
 
 const normalizarTexto = (t) =>
   t.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
 
-/* ---------- Armazenamento ---------- */
+/* ---------- Dados da conta (API) ---------- */
 
-function gravar(proximos) {
-  if (!salvarFavoritos(proximos)) {
-    alert('Não foi possível salvar os favoritos no navegador.')
-    return false
+const textoErro = (erro) => erro?.message || 'Não foi possível concluir a operação. Tente novamente.'
+
+async function carregar() {
+  try {
+    favoritos = await carregarFavoritos()
+    carregado = true
+    erroCarga = ''
+  } catch (falha) {
+    erroCarga = `Não foi possível carregar os favoritos (${textoErro(falha)}).`
   }
-  favoritos = proximos
-  return true
+  renderizar()
 }
 
 /* ---------- Renderização ---------- */
@@ -111,7 +116,9 @@ function criarCartao(favorito) {
   remover.innerHTML = icon('trash')
   remover.title = 'Excluir'
   remover.setAttribute('aria-label', `Excluir ${favorito.nome}`)
-  remover.addEventListener('click', () => excluir(favorito))
+  remover.addEventListener('click', () => {
+    excluir(favorito)
+  })
 
   acoes.append(editar, remover)
   cartao.append(link, acoes)
@@ -122,7 +129,17 @@ function mensagemVazia() {
   const caixa = document.createElement('div')
   caixa.className = 'empty-state'
 
-  if (favoritos.length === 0) {
+  if (!carregado) {
+    caixa.textContent = erroCarga || 'Carregando...'
+    if (erroCarga) {
+      const tentar = document.createElement('button')
+      tentar.type = 'button'
+      tentar.className = 'btn btn-sm'
+      tentar.textContent = 'Tentar novamente'
+      tentar.addEventListener('click', carregar)
+      caixa.append(document.createElement('br'), tentar)
+    }
+  } else if (favoritos.length === 0) {
     caixa.innerHTML = '<strong>Nenhum favorito ainda</strong>Salve seus sites mais usados para abri-los em um clique.'
     const botao = document.createElement('button')
     botao.type = 'button'
@@ -247,7 +264,7 @@ dialogo.addEventListener('click', (e) => {
   if (e.target === dialogo) fecharPopup()
 })
 
-form.addEventListener('submit', (e) => {
+form.addEventListener('submit', async (e) => {
   e.preventDefault()
 
   const nome = campoNome.value.trim()
@@ -272,38 +289,58 @@ form.addEventListener('submit', (e) => {
   }
 
   const dados = { nome, url, categoria, fixado: campoFixado.checked }
-
-  const proximos = editando
-    ? favoritos.map((f) => (f.id === editando.id ? { ...f, ...dados } : f))
-    : [...favoritos, { id: crypto.randomUUID(), criado: Date.now(), ...dados }]
-
-  if (!gravar(proximos)) return
+  const botaoSalvar = form.querySelector('[type="submit"]')
+  if (botaoSalvar) botaoSalvar.disabled = true // evita envio duplo enquanto a API responde
 
   const novo = !editando
+  try {
+    if (editando) {
+      const atualizado = await favoritosApi.atualizar(editando.id, dados)
+      favoritos = favoritos.map((f) => (f.id === editando.id ? atualizado : f))
+    } else {
+      favoritos = [...favoritos, await favoritosApi.criar(dados)]
+    }
+  } catch (falha) {
+    erro.textContent = textoErro(falha)
+    return
+  } finally {
+    if (botaoSalvar) botaoSalvar.disabled = false
+  }
+
   fecharPopup()
   if (categoriaAtiva !== 'todas') categoriaAtiva = categoria
   renderizar()
   mostrarAviso(novo ? 'Link adicionado' : 'Link atualizado')
 })
 
-function excluir(favorito) {
+async function excluir(favorito) {
   if (!confirm(`Excluir "${favorito.nome}" dos favoritos?`)) return false
-  if (!gravar(favoritos.filter((f) => f.id !== favorito.id))) return false
+  try {
+    await favoritosApi.excluir(favorito.id)
+  } catch (falha) {
+    mostrarAviso(textoErro(falha))
+    return false
+  }
+  favoritos = favoritos.filter((f) => f.id !== favorito.id)
   renderizar()
   mostrarAviso('Link excluído')
   return true
 }
 
-botaoExcluir.addEventListener('click', () => {
-  if (editando && excluir(editando)) fecharPopup()
+botaoExcluir.addEventListener('click', async () => {
+  if (editando && (await excluir(editando))) fecharPopup()
 })
 
-// Mantém várias abas sincronizadas.
-window.addEventListener('storage', (e) => {
-  if (e.key === CHAVE_FAVORITOS) {
-    favoritos = carregarFavoritos()
+// Ao voltar para a aba, traz alterações feitas em outro dispositivo ou aba.
+document.addEventListener('visibilitychange', async () => {
+  if (document.hidden || !carregado) return
+  try {
+    favoritos = await carregarFavoritos()
     renderizar()
+  } catch {
+    /* mantém o que já está na tela */
   }
 })
 
 renderizar()
+carregar()
