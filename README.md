@@ -84,9 +84,3 @@ scripts/           migrate.js e gerar-chaves.js
 tests/             suíte automatizada
 docs/              API.md e DEPLOY.md
 ```
-
-## Migração de dados do navegador (versões antigas)
-Quem usava a versão que guardava tudo no `localStorage` tem os dados importados automaticamente no primeiro login (tarefas, financeiro, meta, agenda, favoritos, lazer com capas e preferências). A importação é idempotente, só apaga o dado local depois que o servidor confirma e guarda uma cópia de segurança de qualquer registro rejeitado.
-
-## Licença
-Nenhuma licença foi definida: todos os direitos reservados ao autor. Para permitir o uso por terceiros, adicione uma licença (por exemplo MIT).
