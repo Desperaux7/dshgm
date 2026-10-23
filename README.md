@@ -49,16 +49,6 @@ npm run dev                 # terminal 2: site em http://127.0.0.1:5173
 ```
 Abra **http://127.0.0.1:5173** (não `localhost`): o OAuth e o Spotify usam esse endereço.
 
-## Publicação
-O passo a passo (GitHub → Netlify → Neon → Google Cloud → Spotify) está em **[docs/DEPLOY.md](docs/DEPLOY.md)**. A referência das rotas está em **[docs/API.md](docs/API.md)**.
-
-## Testes
-```bash
-npm test
-```
-A suíte sobe a API contra um PostgreSQL em memória com as **mesmas migrações** de produção e um Google simulado (nenhuma chamada externa, nenhum dado pessoal). Cobre autenticação e sessão, CSRF, isolamento entre usuários, tarefas, financeiro, favoritos, lazer, preferências, importação de dados antigos, sincronização com o Google Calendar (duplicidade, falhas, conflitos, exclusões, revogação), configuração de produção e a lógica de migração do front.
-
-**Não há testes automatizados de interface.** Valide manualmente: login, cada módulo, o painel do Google Calendar, o Spotify e o layout em celular.
 
 ## Segurança
 - Segredos apenas no servidor (variáveis de ambiente); o navegador nunca recebe tokens do Google.
@@ -94,9 +84,3 @@ scripts/           migrate.js e gerar-chaves.js
 tests/             suíte automatizada
 docs/              API.md e DEPLOY.md
 ```
-
-## Migração de dados do navegador (versões antigas)
-Quem usava a versão que guardava tudo no `localStorage` tem os dados importados automaticamente no primeiro login (tarefas, financeiro, meta, agenda, favoritos, lazer com capas e preferências). A importação é idempotente, só apaga o dado local depois que o servidor confirma e guarda uma cópia de segurança de qualquer registro rejeitado.
-
-## Licença
-Nenhuma licença foi definida: todos os direitos reservados ao autor. Para permitir o uso por terceiros, adicione uma licença (por exemplo MIT).
