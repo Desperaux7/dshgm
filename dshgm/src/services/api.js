@@ -1,6 +1,3 @@
-// Cliente da API do DSHGM. Mesma origem (cookie de sessão HttpOnly); o token CSRF vem de /api/auth/me.
-// Os módulos usam este cliente no lugar do localStorage (migração gradual, Fase 4).
-
 export class ApiError extends Error {
   constructor(status, codigo, mensagem, detalhes) {
     super(mensagem)
@@ -46,8 +43,36 @@ async function requisitar(metodo, caminho, corpo, { cabecalhos = {}, bruto = fal
   return dados
 }
 
+// Pré-carga: a porta de entrada (guarda.js) dispara os GETs da página assim que a sessão é confirmada,
+// em paralelo com o download dos módulos. Cada resposta é consumida uma única vez e só vale por alguns
+// segundos; se a pré-carga falhar ou vencer, o módulo faz a requisição normal.
+const VALIDADE_PRECARGA_MS = 15000
+const precarga = new Map()
+
+export function precarregar(caminhos) {
+  for (const caminho of caminhos) {
+    if (precarga.has(caminho)) continue
+    const promessa = requisitar('GET', caminho, undefined, { aoExpirar: false })
+    promessa.catch(() => {}) // a falha aparece para quem consumir; aqui só evita aviso de rejeição ignorada
+    precarga.set(caminho, { promessa, quando: Date.now() })
+  }
+}
+
+function consumirPrecarga(caminho) {
+  const item = precarga.get(caminho)
+  if (!item) return null
+  precarga.delete(caminho)
+  if (Date.now() - item.quando > VALIDADE_PRECARGA_MS) return null
+  return item.promessa.catch(() => requisitar('GET', caminho))
+}
+
 export const api = {
-  get: (c) => requisitar('GET', c),
+  get: (c) => consumirPrecarga(c) ?? requisitar('GET', c),
+  // Sempre vai ao servidor (descarta a pré-carga): use depois de uma escrita que a tornaria desatualizada.
+  getAtual: (c) => {
+    precarga.delete(c)
+    return requisitar('GET', c)
+  },
   post: (c, corpo = {}) => requisitar('POST', c, corpo),
   patch: (c, corpo) => requisitar('PATCH', c, corpo),
   put: (c, corpo = {}) => requisitar('PUT', c, corpo),

@@ -8,10 +8,10 @@ import { lazerApi } from '../services/lazerApi.js'
 import {
   STATUS,
   TIPOS,
-  aplicarRegras,
-  capaHorizontal,
+  capaPrecisaConter,
   carregarItens,
   esquecerCapa,
+  modeloDe,
   statusDe,
   tipoDe,
   urlDaCapa
@@ -54,6 +54,7 @@ async function carregar() {
 
 function montarCapa(item, caixa) {
   caixa.classList.add('cover')
+  caixa.classList.remove('is-wide')
   caixa.replaceChildren()
 
   const marcador = document.createElement('span')
@@ -65,10 +66,11 @@ function montarCapa(item, caixa) {
 
   urlDaCapa(item).then((url) => {
     if (!url || !caixa.isConnected) return
-    const larga = capaHorizontal(item.capa)
-    caixa.classList.toggle('is-wide', larga)
+    // Formato diferente do quadro do modelo: imagem inteira sobre o próprio fundo desfocado (nada é cortado).
+    const conter = capaPrecisaConter(item.capa, modeloDe(item.tipo))
+    caixa.classList.toggle('is-wide', conter)
 
-    if (larga) {
+    if (conter) {
       const fundo = new Image()
       fundo.className = 'cover-blur'
       fundo.alt = ''
@@ -137,10 +139,8 @@ function ordenar(lista) {
 /* ---------- Cartões ---------- */
 
 // Atualização imediata na tela (mesmas regras do servidor); se a API falhar, recarrega o estado real da conta.
-function atualizarItem(id, mudancas, alterado) {
-  itens = itens.map((i) =>
-    i.id === id ? aplicarRegras({ ...i, ...mudancas, atualizado: Date.now() }, alterado) : i
-  )
+function atualizarItem(id, mudancas) {
+  itens = itens.map((i) => (i.id === id ? { ...i, ...mudancas, atualizado: Date.now() } : i))
   renderizar()
 
   lazerApi.atualizar(id, mudancas).catch(async (falha) => {
@@ -152,9 +152,11 @@ function atualizarItem(id, mudancas, alterado) {
 
 function criarCartao(item) {
   const tipo = tipoDe(item.tipo)
+  const modelo = modeloDe(item.tipo)
+  const concluido = item.status === 'concluido'
 
   const cartao = document.createElement('article')
-  cartao.className = `lib-card status-${item.status}`
+  cartao.className = `lib-card model-${modelo} status-${item.status}`
 
   const capa = document.createElement('button')
   capa.type = 'button'
@@ -169,11 +171,18 @@ function criarCartao(item) {
   selo.title = tipo.nome
   capa.append(selo)
 
-  if (item.tipo === 'jogo' && item.progresso > 0) {
-    const trilha = document.createElement('span')
-    trilha.className = 'lib-progress-bar'
-    trilha.innerHTML = `<i style="width:${item.progresso}%"></i>`
-    capa.append(trilha)
+  // Item concluído: broche sobre a capa, com um desenho para cada modelo (a capa também fica apagada, ver CSS).
+  //   jogo -> "Zerado" com troféu | filme -> "Assistido" com claquete | série -> "Assistido" com TV
+  if (concluido) {
+    const feito = document.createElement('span')
+    feito.className = `lib-done is-${modelo}`
+    const [iconeFeito, rotuloFeito] = {
+      jogo: ['trophy', 'Zerado'],
+      filme: ['film', 'Assistido'],
+      serie: ['tv', 'Assistido']
+    }[item.tipo] ?? ['check-circle', 'Concluído']
+    feito.innerHTML = `${icon(iconeFeito)}<span>${rotuloFeito}</span>`
+    capa.append(feito)
   }
 
   const acoes = document.createElement('div')
@@ -197,35 +206,20 @@ function criarCartao(item) {
   info.className = 'lib-info'
 
   const titulo = document.createElement('strong')
-  titulo.textContent = item.titulo
   titulo.title = item.titulo
+  if (concluido) titulo.innerHTML = icon('check', 'lib-title-check')
+  titulo.append(item.titulo)
 
+  // Jogo: plataforma em destaque. Filme/série: tipo + onde assistir.
   const meta = document.createElement('small')
-  const partes = [tipo.nome]
-  if (item.plataforma) partes.push(item.plataforma)
-  if (item.tipo === 'jogo' && item.status !== 'pendente') partes.push(`${item.progresso}%`)
-  meta.textContent = partes.join(' · ')
+  meta.className = 'lib-meta'
+  if (modelo === 'jogo') {
+    meta.textContent = item.plataforma || tipo.nome
+  } else {
+    meta.textContent = [tipo.nome, item.plataforma].filter(Boolean).join(' · ')
+  }
 
   info.append(titulo, meta)
-
-  // Progresso rápido: jogos em andamento ajustam direto no cartão.
-  if (item.tipo === 'jogo' && item.status === 'andamento') {
-    const range = document.createElement('input')
-    range.type = 'range'
-    range.className = 'range'
-    range.min = '0'
-    range.max = '100'
-    range.step = '5'
-    range.value = String(item.progresso)
-    range.setAttribute('aria-label', `Progresso de ${item.titulo}`)
-    range.addEventListener('input', () => {
-      meta.textContent = [...partes.slice(0, -1), `${range.value}%`].join(' · ')
-      const barra = capa.querySelector('.lib-progress-bar i')
-      if (barra) barra.style.width = `${range.value}%`
-    })
-    range.addEventListener('change', () => atualizarItem(item.id, { progresso: Number(range.value) }, 'progresso'))
-    info.append(range)
-  }
 
   const proxima = {
     pendente: ['Começar', 'andamento'],
@@ -236,7 +230,7 @@ function criarCartao(item) {
   avancar.type = 'button'
   avancar.className = 'lib-advance'
   avancar.textContent = proxima[0]
-  avancar.addEventListener('click', () => atualizarItem(item.id, { status: proxima[1] }, 'status'))
+  avancar.addEventListener('click', () => atualizarItem(item.id, { status: proxima[1] }))
   info.append(avancar)
 
   cartao.append(capa, acoes, info)
@@ -294,11 +288,30 @@ function renderizar() {
     total.textContent = `${doGrupo.length} ${doGrupo.length === 1 ? 'item' : 'itens'}`
     titulo.append(total)
 
-    const grade = document.createElement('div')
-    grade.className = 'lib-grid'
-    grade.append(...doGrupo.map(criarCartao))
+    grupo.append(titulo)
 
-    grupo.append(titulo, grade)
+    // Cada modelo tem a sua grade: cápsulas horizontais para jogos, pôsteres verticais para filmes e séries.
+    const jogos = doGrupo.filter((i) => modeloDe(i.tipo) === 'jogo')
+    const midias = doGrupo.filter((i) => modeloDe(i.tipo) !== 'jogo')
+    const dividido = jogos.length > 0 && midias.length > 0
+
+    ;[
+      ['jogo', 'Jogos', jogos],
+      ['midia', 'Filmes e séries', midias]
+    ].forEach(([modelo, rotulo, doModelo]) => {
+      if (!doModelo.length) return
+      if (dividido) {
+        const sub = document.createElement('p')
+        sub.className = 'lib-subtitle'
+        sub.textContent = rotulo
+        grupo.append(sub)
+      }
+      const grade = document.createElement('div')
+      grade.className = `lib-grid is-${modelo}`
+      grade.append(...doModelo.map(criarCartao))
+      grupo.append(grade)
+    })
+
     lista.append(grupo)
   })
 }
@@ -329,9 +342,7 @@ const form = $('#lib-form')
 const campoTitulo = $('#lib-title')
 const grupoTipo = $('#lib-type')
 const grupoEstado = $('#lib-state')
-const blocoProgresso = $('#lib-progress-field')
-const campoProgresso = $('#lib-progress')
-const saidaProgresso = $('#lib-progress-out')
+const dicaCapa = $('#lib-cover-hint')
 const campoPlataforma = $('#lib-platform')
 const rotuloPlataforma = $('#lib-platform-label')
 const erro = $('#lib-error')
@@ -369,36 +380,26 @@ function marcar(grupo, valor) {
   grupo.querySelectorAll('button').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.valor === valor)))
 }
 
-function atualizarProgresso(valor) {
-  campoProgresso.value = String(valor)
-  saidaProgresso.textContent = `${valor}%`
+// O formulário segue o modelo do tipo: jogo = cápsula horizontal (Steam); filme/série = pôster vertical.
+const DICAS_CAPA = {
+  jogo: 'Modelo de jogo: capa horizontal no padrão Steam Grid (920×430) ou vertical (600×900).',
+  midia: 'Modelo de filme/série: pôster vertical (600×900, proporção 2:3).'
 }
 
 function definirTipo(tipo) {
   tipoAtual = tipo
   marcar(grupoTipo, tipo)
-  blocoProgresso.hidden = tipo !== 'jogo'
   rotuloPlataforma.textContent = tipo === 'jogo' ? 'Plataforma' : 'Onde assistir'
   campoPlataforma.placeholder = tipoDe(tipo).dica
-  if (tipo !== 'jogo') atualizarProgresso(0)
+  zonaCapa.classList.toggle('is-game', modeloDe(tipo) === 'jogo')
+  dicaCapa.textContent = DICAS_CAPA[modeloDe(tipo)]
+  ajustarEncaixePrevia()
 }
 
 function definirEstado(estado) {
   estadoAtual = estado
   marcar(grupoEstado, estado)
-  if (tipoAtual !== 'jogo') return
-  if (estado === 'concluido') atualizarProgresso(100)
-  else if (estado === 'pendente') atualizarProgresso(0)
 }
-
-campoProgresso.addEventListener('input', () => {
-  const valor = Number(campoProgresso.value)
-  atualizarProgresso(valor)
-  if (valor >= 100) estadoAtual = 'concluido'
-  else if (valor > 0 && estadoAtual !== 'andamento') estadoAtual = 'andamento'
-  else if (valor === 0 && estadoAtual === 'concluido') estadoAtual = 'andamento'
-  marcar(grupoEstado, estadoAtual)
-})
 
 /* Capa: escolher, arrastar e remover */
 
@@ -409,10 +410,15 @@ function mostrarPrevia(url) {
   vazioCapa.hidden = Boolean(url)
   removerCapa.hidden = !url
   if (url) previaCapa.src = url
-  const horizontal = previaCapa.naturalWidth > previaCapa.naturalHeight * 1.2
-  zonaCapa.classList.toggle('is-wide', Boolean(url) && horizontal)
+  ajustarEncaixePrevia()
 }
-previaCapa.addEventListener('load', () => zonaCapa.classList.toggle('is-wide', previaCapa.naturalWidth > previaCapa.naturalHeight * 1.2))
+
+// Imagem com formato diferente do quadro do modelo aparece inteira (sem cortes); no mesmo formato, preenche.
+function ajustarEncaixePrevia() {
+  const capa = previaCapa.naturalWidth ? { largura: previaCapa.naturalWidth, altura: previaCapa.naturalHeight } : null
+  zonaCapa.classList.toggle('is-wide', Boolean(previaUrl) && capaPrecisaConter(capa, modeloDe(tipoAtual)))
+}
+previaCapa.addEventListener('load', ajustarEncaixePrevia)
 
 // O servidor aceita capas de até 600 KB: tenta qualidade/tamanho decrescentes até caber.
 const TENTATIVAS_CAPA = [
@@ -483,7 +489,6 @@ async function abrirPopup(item = null) {
   definirTipo(tipoInicial)
   estadoAtual = item?.status ?? 'pendente'
   marcar(grupoEstado, estadoAtual)
-  atualizarProgresso(item?.progresso ?? 0)
 
   mostrarPrevia(null)
   dialogo.showModal()
@@ -519,17 +524,12 @@ form.addEventListener('submit', async (e) => {
     return
   }
 
-  // Status e progresso coerentes entre si, como sempre foi no formulário.
-  const base = aplicarRegras(
-    {
-      tipo: tipoAtual,
-      titulo,
-      plataforma: campoPlataforma.value.trim(),
-      status: estadoAtual,
-      progresso: tipoAtual === 'jogo' ? Number(campoProgresso.value) : 0
-    },
-    'progresso'
-  )
+  const base = {
+    tipo: tipoAtual,
+    titulo,
+    plataforma: campoPlataforma.value.trim(),
+    status: estadoAtual
+  }
 
   const botaoSalvar = form.querySelector('[type="submit"]')
   if (botaoSalvar) botaoSalvar.disabled = true // evita envio duplo enquanto a API responde
@@ -617,6 +617,7 @@ function mostrarSorteado(item, final) {
   const tipo = tipoDe(item.tipo)
   sorteioNome.textContent = item.titulo
   sorteioMeta.textContent = [tipo.nome, item.plataforma].filter(Boolean).join(' · ')
+  sorteioCapa.classList.toggle('is-game', modeloDe(item.tipo) === 'jogo')
   montarCapa(item, sorteioCapa)
   sorteioResultado.classList.toggle('is-final', final)
 }
@@ -682,7 +683,7 @@ sorteio.addEventListener('close', () => {
 botaoComecar.addEventListener('click', () => {
   if (!sorteado) return
   sorteio.close()
-  atualizarItem(sorteado.id, { status: 'andamento' }, 'status')
+  atualizarItem(sorteado.id, { status: 'andamento' })
   mostrarAviso(`Boa diversão com "${sorteado.titulo}"`)
 })
 

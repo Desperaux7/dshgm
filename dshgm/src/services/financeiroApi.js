@@ -29,6 +29,16 @@ export const financeiroApi = {
   async removerMeta() {
     await api.delete('/meta')
   },
+  // Categorias criadas pelo usuário: { id, tipo, nome }
+  async listarCategorias() {
+    return (await api.get('/categorias')).categorias
+  },
+  async criarCategoria(dados) {
+    return (await api.post('/categorias', dados)).categoria
+  },
+  async removerCategoria(id) {
+    await api.delete(`/categorias/${encodeURIComponent(id)}`)
+  },
   // { mes, entradas, despesas, guardado, saldo, totalGuardado }
   async resumo(mes) {
     return (await api.get(`/transacoes/resumo?mes=${mes}`)).resumo

@@ -4,7 +4,9 @@ const SELECT = `
   select t.id, t.text as texto, t.kind as tipo, to_char(t.date, 'YYYY-MM-DD') as data,
          t.weekdays as dias, to_char(t.created_on, 'YYYY-MM-DD') as criada,
          coalesce((select jsonb_object_agg(to_char(c.day, 'YYYY-MM-DD'), true)
-                     from task_completions c where c.task_id = t.id), '{}'::jsonb) as concluidas
+                     from task_completions c where c.task_id = t.id), '{}'::jsonb) as concluidas,
+         coalesce((select jsonb_object_agg(to_char(p.day, 'YYYY-MM-DD'), true)
+                     from task_progress p where p.task_id = t.id), '{}'::jsonb) as andamento
     from tasks t`
 
 const mapear = (r) => ({
@@ -14,7 +16,8 @@ const mapear = (r) => ({
   data: r.data,
   dias: (r.dias ?? []).map(Number),
   criada: r.criada,
-  concluidas: r.concluidas ?? {}
+  concluidas: r.concluidas ?? {},
+  andamento: r.andamento ?? {}
 })
 
 export function criarRepoTarefas(db) {
@@ -49,16 +52,36 @@ export function criarRepoTarefas(db) {
       const r = await db.query('delete from tasks where id = $1 and user_id = $2 returning id', [id, userId])
       return r.length > 0
     },
-    // A conclusão só é gravada se a tarefa pertencer ao usuário (o EXISTS impede escrita em tarefa alheia).
-    async definirConclusao(userId, id, dia, concluida) {
-      const dono = await db.query('select 1 from tasks where id = $1 and user_id = $2', [id, userId])
-      if (!dono.length) return false
-      if (concluida) {
-        await db.query('insert into task_completions (task_id, day) values ($1, $2::date) on conflict do nothing', [id, dia])
-      } else {
-        await db.query('delete from task_completions where task_id = $1 and day = $2::date', [id, dia])
-      }
-      return true
+    // Estado de um dia da tarefa: 'pendente' | 'andamento' | 'concluida'. Os três são exclusivos e a troca é
+    // uma única instrução (as CTEs enxergam o mesmo instante), então o dia nunca fica em dois estados.
+    // Só grava se a tarefa pertencer ao usuário (o EXISTS impede escrita em tarefa alheia).
+    async definirStatus(userId, id, dia, status) {
+      const [r] = await db.query(
+        `with dono as (select 1 from tasks where id = $1 and user_id = $2),
+              sai_concluida as (
+                delete from task_completions
+                 where task_id = $1 and day = $3::date and $4::text <> 'concluida' and exists (select 1 from dono)
+                 returning 1),
+              sai_andamento as (
+                delete from task_progress
+                 where task_id = $1 and day = $3::date and $4::text <> 'andamento' and exists (select 1 from dono)
+                 returning 1),
+              entra_concluida as (
+                insert into task_completions (task_id, day)
+                select $1, $3::date where $4::text = 'concluida' and exists (select 1 from dono)
+                on conflict do nothing returning 1),
+              entra_andamento as (
+                insert into task_progress (task_id, day)
+                select $1, $3::date where $4::text = 'andamento' and exists (select 1 from dono)
+                on conflict do nothing returning 1)
+         select exists (select 1 from dono) as ok`,
+        [id, userId, dia, status]
+      )
+      return Boolean(r?.ok)
+    },
+    // Compatibilidade: marcar/desmarcar conclusão (desmarcar volta o dia para pendente).
+    definirConclusao(userId, id, dia, concluida) {
+      return this.definirStatus(userId, id, dia, concluida ? 'concluida' : 'pendente')
     },
     // Importação em lote, idempotente por (user_id, client_id), em uma única instrução.
     async importar(userId, lote) {

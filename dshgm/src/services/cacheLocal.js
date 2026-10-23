@@ -1,9 +1,9 @@
-// Cache local de dados da conta (hoje: só preferências, para evitar "piscar" a cor padrão ao abrir a página).
+// Cache local de dados da conta (preferências, nome de exibição e ícones de sites: evitam "piscar" ao abrir a página).
 // O cache sempre pertence a UMA conta: se outra conta entrar no mesmo navegador, ele é descartado
 // em vez de ser copiado para a conta errada.
 
 export const CHAVE_DONO = 'dshgm-cache-dono'
-export const CHAVES_CACHE = ['dashboard-preferencias', 'dashboard-preferencias-pendente']
+export const CHAVES_CACHE = ['dashboard-preferencias', 'dashboard-preferencias-pendente', 'dashboard-nome-exibicao', 'dashboard-favicons']
 
 export function donoDoCache(armazenamento = localStorage) {
   try {

@@ -701,17 +701,76 @@
   height: 11px;
 }
 
+/* Indicador de status da tarefa (também é o botão que avança o estado) */
 .task-state {
-  color: var(--muted);
+  --estado: var(--faint);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 22px;
+  padding: 0 9px 0 8px;
+  color: var(--estado);
+  background: color-mix(in srgb, var(--estado) 10%, transparent);
+  border: 1px solid color-mix(in srgb, var(--estado) 28%, transparent);
+  border-radius: 999px;
+  font-size: 11px;
+  line-height: 1;
+  transition: background 0.2s, border-color 0.2s, color 0.2s;
+}
+
+.task-state:hover {
+  background: color-mix(in srgb, var(--estado) 18%, transparent);
+  border-color: color-mix(in srgb, var(--estado) 50%, transparent);
+}
+
+.task-state-dot {
+  width: 6px;
+  height: 6px;
+  background: currentColor;
+  border-radius: 50%;
+}
+
+.task-state.is-pendente {
+  --estado: var(--muted);
+}
+
+.task-state.is-pendente .task-state-dot {
+  background: transparent;
+  box-shadow: inset 0 0 0 1.5px currentColor;
+}
+
+.task-state.is-andamento {
+  --estado: #fbbf24;
+}
+
+.task-state.is-andamento .task-state-dot {
+  animation: task-pulse 1.6s ease-in-out infinite;
+}
+
+.task-state.is-concluida {
+  --estado: var(--mint);
+}
+
+@keyframes task-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(251, 191, 36, 0.55); }
+  50% { box-shadow: 0 0 0 4px rgba(251, 191, 36, 0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .task-state.is-andamento .task-state-dot {
+    animation: none;
+  }
+}
+
+.task-item.in-progress {
+  background: rgba(251, 191, 36, 0.05);
+  border-color: rgba(251, 191, 36, 0.22);
+  box-shadow: inset 3px 0 0 #fbbf24;
 }
 
 .task-item.completed .task-name {
   color: var(--faint);
   text-decoration: line-through;
-}
-
-.task-item.completed .task-state {
-  color: var(--mint);
 }
 
 .task-item input[type='checkbox'] {
@@ -730,6 +789,23 @@
 .task-item input[type='checkbox']:checked {
   background: var(--cyan);
   border-color: var(--cyan);
+}
+
+/* Em andamento: estado intermediário da caixa (traço) */
+.task-item input[type='checkbox']:indeterminate {
+  border-color: #fbbf24;
+}
+
+.task-item input[type='checkbox']:indeterminate::after {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 8px;
+  height: 2px;
+  content: '';
+  background: #fbbf24;
+  border-radius: 2px;
+  transform: translate(-50%, -50%);
 }
 
 .task-item input[type='checkbox']:checked::after {

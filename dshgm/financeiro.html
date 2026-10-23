@@ -11,7 +11,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Montserrat:wght@200;300;400;500;600;700&display=swap">
   <script>
-    /* Aplica as preferências antes da primeira pintura (evita piscar a cor padrão). */
+    /* Aplica as preferências. */
     try {
       var p = JSON.parse(localStorage.getItem('dashboard-preferencias')) || {}
       var r = document.documentElement
@@ -180,10 +180,10 @@
                 <input type="date" id="transaction-date" required>
               </label>
 
-              <label class="field-wide">
-                Categoria
-                <select id="transaction-category" required></select>
-              </label>
+              <div class="field-wide cat-field">
+                <span id="category-label">Categoria</span>
+                <select id="transaction-category" aria-labelledby="category-label" required></select>
+              </div>
             </div>
 
             <button type="submit" class="primary-button">

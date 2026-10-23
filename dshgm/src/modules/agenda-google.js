@@ -1,6 +1,6 @@
 // Painel de conexão com o Google Calendar na página da Agenda.
-// A sincronização NÃO é instantânea: acontece ao abrir a agenda, ao voltar para a aba, após cada alteração
-// feita aqui e, no servidor, a cada 15 minutos.
+// (A sincronização não é instantânea: acontece ao abrir a agenda, ao voltar para a aba, após cada alteração
+// feita aqui e, no servidor, a cada 15 minutos. Isso não é mais explicado na tela.)
 import { calendarioApi, URL_CONECTAR, mudouAgenda } from '../services/calendarioApi.js'
 import { mostrarAviso } from './shell.js'
 
@@ -58,13 +58,7 @@ export function iniciarPainelGoogle({ aoSincronizar }) {
     } else if (status.conectado) {
       info.append(el('p', '', `Conectado a ${status.email ?? 'sua conta Google'}.`))
       const ultima = formatarDataHora(status.ultimaSincronizacao)
-      info.append(
-        el(
-          'p',
-          '',
-          `${ultima ? `Última sincronização: ${ultima}. ` : 'Ainda não sincronizado. '}A sincronização não é instantânea: ocorre ao abrir a agenda e a cada 15 minutos.`
-        )
-      )
+      info.append(el('p', '', ultima ? `Última sincronização: ${ultima}.` : 'Ainda não sincronizado.'))
       const { pending = 0, error = 0 } = status.eventosPorEstado ?? {}
       if (pending) info.append(el('p', 'gcal-aviso', `${pending} evento(s) aguardando envio ao Google.`))
       if (error) info.append(el('p', 'gcal-aviso', `${error} evento(s) com erro de sincronização.`))

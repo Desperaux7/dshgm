@@ -29,11 +29,12 @@ Base: `/api` (mesma origem do site). Todas as respostas são JSON, com `Cache-Co
 
 | Rota | Corpo / observações |
 |---|---|
-| `GET /tarefas` | `{ tarefas: [{ id, texto, tipo, data, dias, criada, concluidas }] }` |
+| `GET /tarefas` | `{ tarefas: [{ id, texto, tipo, data, dias, criada, concluidas, andamento }] }` |
 | `POST /tarefas` | `{ texto, tipo: 'unica'\|'recorrente', data?, dias?, criada? }` |
 | `PATCH /tarefas/:id` | Qualquer subconjunto de `texto, tipo, data, dias` |
 | `DELETE /tarefas/:id` | 204 |
-| `PUT /tarefas/:id/concluidas/:AAAA-MM-DD` | `{ concluida: boolean }` |
+| `PUT /tarefas/:id/concluidas/:AAAA-MM-DD` | `{ concluida: boolean }` (desmarcar volta o dia para pendente) |
+| `PUT /tarefas/:id/status/:AAAA-MM-DD` | `{ status: 'pendente'\|'andamento'\|'concluida' }`. Um dia tem um estado só; resposta `{ tarefa }` |
 
 ## Financeiro
 
@@ -44,13 +45,14 @@ Base: `/api` (mesma origem do site). Todas as respostas são JSON, com `Cache-Co
 | `POST /transacoes` | `{ type: 'expense'\|'income'\|'saving', description, category, amount, date }` |
 | `PATCH /transacoes/:id`, `DELETE /transacoes/:id` | |
 | `GET/PUT/DELETE /meta` | `{ nome?, valor, prazo: 'AAAA-MM' }` |
+| `GET /categorias`, `POST /categorias`, `DELETE /categorias/:id` | Categorias próprias: `{ tipo: 'expense'\|'income'\|'saving', nome (1–40) }`. Criar repetido devolve a existente; máx. 60 por conta. Apagar não altera movimentações já registradas |
 
 ## Favoritos, Lazer, Preferências
 
 | Rota | Observações |
 |---|---|
 | `GET/POST /favoritos`, `PATCH/DELETE /favoritos/:id` | `{ nome, url (http/https), categoria?, fixado? }` |
-| `GET/POST /lazer`, `PATCH/DELETE /lazer/:id` | `{ tipo, titulo, plataforma?, status?, progresso? }` (regras de status/progresso aplicadas no servidor) |
+| `GET/POST /lazer`, `PATCH/DELETE /lazer/:id` | `{ tipo, titulo, plataforma?, status? }` (`progresso` ainda é aceito, mas a tela não o usa mais) |
 | `PUT /lazer/:id/capa` | Corpo binário `image/jpeg\|png\|webp` (máx. 600 KB), cabeçalhos `X-Largura` e `X-Altura`. Assinatura do arquivo é conferida |
 | `GET /lazer/:id/capa`, `DELETE /lazer/:id/capa` | |
 | `GET /preferencias`, `PATCH /preferencias` | Mescla parcial; `foto` (data URL ≤ 600 KB) ou `null` |

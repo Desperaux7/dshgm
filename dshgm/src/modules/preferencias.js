@@ -4,6 +4,7 @@ import { api } from '../services/api.js'
 
 const CHAVE = 'dashboard-preferencias'
 const CHAVE_PENDENTE = 'dashboard-preferencias-pendente'
+const CHAVE_NOME = 'dashboard-nome-exibicao'
 export const EVENTO = 'preferencias-alteradas'
 
 export const DESTAQUES = [
@@ -47,6 +48,7 @@ function mesclar(salvas) {
 }
 
 let atuais = mesclar(lerJSON(CHAVE, null))
+let versaoLocal = 0 // muda a cada alteração feita pelo usuário (evita que uma resposta atrasada do servidor a desfaça)
 
 export const lerPreferencias = () => atuais
 
@@ -55,10 +57,27 @@ let externo = { nome: '', foto: null }
 
 export function definirUsuarioExterno({ nome, foto }) {
   externo = { nome: String(nome ?? '').trim().split(/\s+/)[0] ?? '', foto: foto ?? null }
+  guardarNomeDaSaudacao()
 }
 
 export function nomeExibicao() {
   return atuais.nome.trim() || externo.nome || perfil.nome
+}
+
+// Nome para a saudação da página inicial: só o que a conta realmente tem (nunca um nome fixo de outra pessoa).
+export function nomeSaudacao() {
+  return atuais.nome.trim() || externo.nome || ''
+}
+
+// A página inicial lê este valor antes do primeiro desenho (script no index.html), sem esperar o servidor.
+function guardarNomeDaSaudacao() {
+  try {
+    const nome = nomeSaudacao()
+    if (nome) localStorage.setItem(CHAVE_NOME, nome)
+    else localStorage.removeItem(CHAVE_NOME)
+  } catch {
+    /* sem armazenamento: a saudação aparece quando a conta responder */
+  }
 }
 
 export function fotoPerfil() {
@@ -91,6 +110,8 @@ export function atualizarPreferencias(parcial) {
 
   const salvou = salvarJSON(CHAVE, proximas)
   atuais = proximas
+  versaoLocal++
+  guardarNomeDaSaudacao()
   aplicarPreferencias(atuais)
   window.dispatchEvent(new CustomEvent(EVENTO, { detail: atuais }))
   agendarEnvio(parcial)
@@ -99,7 +120,9 @@ export function atualizarPreferencias(parcial) {
 
 export function restaurarPadroes() {
   atuais = mesclar(null)
+  versaoLocal++
   salvarJSON(CHAVE, atuais)
+  guardarNomeDaSaudacao()
   aplicarPreferencias(atuais)
   window.dispatchEvent(new CustomEvent(EVENTO, { detail: atuais }))
   agendarEnvio(atuais) // sobrescreve também na conta (nome vazio e foto removida)
@@ -154,12 +177,14 @@ window.addEventListener('pagehide', () => {
 function aplicarEstado(proximas) {
   atuais = mesclar(proximas)
   salvarJSON(CHAVE, atuais)
+  guardarNomeDaSaudacao()
   aplicarPreferencias(atuais)
   window.dispatchEvent(new CustomEvent(EVENTO, { detail: atuais }))
 }
 
 // Chamado após o login: reenvia pendências de uma sessão anterior e traz as preferências da conta.
 export async function sincronizarComServidor() {
+  const versaoInicial = versaoLocal
   const pendente = localStorage.getItem(CHAVE_PENDENTE) !== null
   if (pendente) {
     try {
@@ -169,7 +194,9 @@ export async function sincronizarComServidor() {
       return // sem conexão: continua com o cache local, tenta de novo na próxima vez
     }
   }
-  const { preferencias } = await api.get('/preferencias')
+  // Depois de enviar pendências, a resposta pré-carregada estaria desatualizada: busca de novo.
+  const { preferencias } = await (pendente ? api.getAtual('/preferencias') : api.get('/preferencias'))
+  if (versaoLocal !== versaoInicial) return // o usuário mexeu enquanto a resposta vinha: o que ele fez vale mais
   const { foto, ...resto } = preferencias ?? {}
   if (Object.keys(resto).length || foto) aplicarEstado(preferencias)
 }

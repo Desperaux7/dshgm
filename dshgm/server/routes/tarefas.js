@@ -15,6 +15,7 @@ const zAtualizar = z
   .object({ texto: zTexto(1, 300), tipo: z.enum(['unica', 'recorrente']), data: zData, dias: zDiasSemana, criada: zData })
   .partial()
 const zConclusao = z.object({ concluida: z.boolean() })
+const zStatus = z.object({ status: z.enum(['pendente', 'andamento', 'concluida']) })
 
 const hojeDe = (usuario) => formatarNoFuso(new Date(), usuario.timezone).data
 
@@ -70,6 +71,15 @@ export function criarRotasTarefas({ repos }) {
     if (!dataValida(req.params.dia)) throw requisicaoInvalida('Data inválida.')
     const { concluida } = validar(zConclusao, req.body)
     if (!(await tarefas.definirConclusao(req.usuario.id, id, req.params.dia, concluida))) throw naoEncontrado('Tarefa não encontrada.')
+    res.json({ tarefa: await tarefas.obter(req.usuario.id, id) })
+  }))
+
+  // Estado do dia: pendente, em andamento ou concluída (um por vez).
+  router.put('/:id/status/:dia', assincrono(async (req, res) => {
+    const id = uuidDaRota(req.params.id)
+    if (!dataValida(req.params.dia)) throw requisicaoInvalida('Data inválida.')
+    const { status } = validar(zStatus, req.body)
+    if (!(await tarefas.definirStatus(req.usuario.id, id, req.params.dia, status))) throw naoEncontrado('Tarefa não encontrada.')
     res.json({ tarefa: await tarefas.obter(req.usuario.id, id) })
   }))
 

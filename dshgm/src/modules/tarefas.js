@@ -1,6 +1,6 @@
 import { icon } from './icons.js'
 import { mostrarAviso } from './shell.js'
-import { tarefasApi } from '../services/tarefasApi.js'
+import { statusDoDia, tarefasApi } from '../services/tarefasApi.js'
 
 const DIAS_CURTOS = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb']
 const DIAS_LONGOS = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado']
@@ -14,9 +14,14 @@ const MESES = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'O
     data: 'AAAA-MM-DD',     // só para tarefas únicas
     dias: [0..6],           // só para recorrentes (0 = domingo)
     criada: 'AAAA-MM-DD',   // recorrentes só aparecem a partir daqui
-    concluidas: { 'AAAA-MM-DD': true }  // conclusão controlada dia a dia
+    concluidas: { 'AAAA-MM-DD': true },  // conclusão controlada dia a dia
+    andamento: { 'AAAA-MM-DD': true }    // dias em que está "em andamento" (nunca junto com concluída)
   }
 */
+
+const ROTULOS_STATUS = { pendente: 'Pendente', andamento: 'Em andamento', concluida: 'Concluída' }
+// Clique no indicador: pendente → em andamento → concluída → pendente.
+const PROXIMO_STATUS = { pendente: 'andamento', andamento: 'concluida', concluida: 'pendente' }
 
 function chaveData(data = new Date()) {
   const mes = String(data.getMonth() + 1).padStart(2, '0')
@@ -242,7 +247,8 @@ export function iniciarTarefas() {
     }
 
     const visiveis = tarefas.filter((t) => apareceEm(t, diaAtual))
-    const feitas = visiveis.filter((t) => t.concluidas[diaAtual]).length
+    const feitas = visiveis.filter((t) => statusDoDia(t, diaAtual) === 'concluida').length
+    const emAndamento = visiveis.filter((t) => statusDoDia(t, diaAtual) === 'andamento').length
 
     if (diaTexto) {
       const dia = String(agora.getDate()).padStart(2, '0')
@@ -252,7 +258,8 @@ export function iniciarTarefas() {
     if (contador) contador.textContent = String(visiveis.length - feitas)
 
     if (progressoTexto) {
-      progressoTexto.textContent = `${feitas} de ${visiveis.length} ${feitas === 1 ? 'concluída' : 'concluídas'}`
+      const andamento = emAndamento ? ` · ${emAndamento} em andamento` : ''
+      progressoTexto.textContent = `${feitas} de ${visiveis.length} ${feitas === 1 ? 'concluída' : 'concluídas'}${andamento}`
     }
 
     if (progressoBarra) {
@@ -269,41 +276,50 @@ export function iniciarTarefas() {
       return
     }
 
+    // Troca o estado do dia na tela na hora; se a API falhar, só esse dia dessa tarefa volta ao que era.
+    async function mudarStatus(tarefa, novo) {
+      const dia = diaAtual
+      const anterior = statusDoDia(tarefa, dia)
+      if (novo === anterior) return
+
+      const aplicar = (status) => {
+        tarefas = tarefas.map((t) => {
+          if (t.id !== tarefa.id) return t
+          const concluidas = { ...t.concluidas }
+          const andamento = { ...t.andamento }
+          delete concluidas[dia]
+          delete andamento[dia]
+          if (status === 'concluida') concluidas[dia] = true
+          if (status === 'andamento') andamento[dia] = true
+          return { ...t, concluidas, andamento }
+        })
+        renderizar()
+      }
+
+      aplicar(novo)
+      try {
+        await tarefasApi.definirStatus(tarefa.id, dia, novo)
+      } catch (falha) {
+        aplicar(anterior)
+        mostrarAviso(mensagemDe(falha))
+      }
+    }
+
     visiveis.forEach((tarefa) => {
-      const concluida = Boolean(tarefa.concluidas[diaAtual])
+      const status = statusDoDia(tarefa, diaAtual)
+      const concluida = status === 'concluida'
 
       const item = document.createElement('li')
-      item.className = `task-item${concluida ? ' completed' : ''}`
+      item.className = `task-item${concluida ? ' completed' : ''}${status === 'andamento' ? ' in-progress' : ''}`
+      item.dataset.status = status
 
+      // Caixa de seleção: marca/desmarca a conclusão. "Em andamento" aparece como estado intermediário (traço).
       const checkbox = document.createElement('input')
       checkbox.type = 'checkbox'
       checkbox.checked = concluida
+      checkbox.indeterminate = status === 'andamento'
       checkbox.setAttribute('aria-label', `${concluida ? 'Reabrir' : 'Concluir'} ${tarefa.texto}`)
-
-      checkbox.addEventListener('change', async () => {
-        const marcada = checkbox.checked
-        const dia = diaAtual
-
-        // Atualização imediata na tela; se a API falhar, só esse dia dessa tarefa volta ao estado anterior.
-        const aplicar = (valor) => {
-          tarefas = tarefas.map((t) => {
-            if (t.id !== tarefa.id) return t
-            const concluidas = { ...t.concluidas }
-            if (valor) concluidas[dia] = true
-            else delete concluidas[dia]
-            return { ...t, concluidas }
-          })
-          renderizar()
-        }
-
-        aplicar(marcada)
-        try {
-          await tarefasApi.concluir(tarefa.id, dia, marcada)
-        } catch (falha) {
-          aplicar(!marcada)
-          mostrarAviso(mensagemDe(falha))
-        }
-      })
+      checkbox.addEventListener('change', () => mudarStatus(tarefa, checkbox.checked ? 'concluida' : 'pendente'))
 
       const corpo = document.createElement('div')
       corpo.className = 'task-body'
@@ -315,9 +331,15 @@ export function iniciarTarefas() {
       const meta = document.createElement('span')
       meta.className = 'task-meta'
 
-      const estado = document.createElement('span')
-      estado.className = 'task-state'
-      estado.textContent = concluida ? 'Concluída' : 'Pendente'
+      // Indicador de status (também é o botão que avança o estado).
+      const estado = document.createElement('button')
+      estado.type = 'button'
+      estado.className = `task-state is-${status}`
+      estado.innerHTML = '<i class="task-state-dot" aria-hidden="true"></i>'
+      estado.append(ROTULOS_STATUS[status])
+      estado.title = `Alterar para: ${ROTULOS_STATUS[PROXIMO_STATUS[status]]}`
+      estado.setAttribute('aria-label', `${tarefa.texto}: ${ROTULOS_STATUS[status]}. Alterar para ${ROTULOS_STATUS[PROXIMO_STATUS[status]].toLowerCase()}`)
+      estado.addEventListener('click', () => mudarStatus(tarefa, PROXIMO_STATUS[status]))
       meta.append(estado)
 
       const frequencia = document.createElement('span')

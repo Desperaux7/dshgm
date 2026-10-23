@@ -92,6 +92,34 @@ export function criarRepoTransacoes(db) {
       )
       return r
     },
+    async listarCategorias(userId) {
+      const l = await db.query(
+        'select id, type, name from transaction_categories where user_id = $1 order by lower(name), id',
+        [userId]
+      )
+      return l.map((c) => ({ id: c.id, tipo: c.type, nome: c.name }))
+    },
+    async contarCategorias(userId) {
+      const [r] = await db.query('select count(*)::int as n from transaction_categories where user_id = $1', [userId])
+      return r.n
+    },
+    // Idempotente: pedir uma categoria que já existe (sem diferenciar maiúsculas) devolve a existente.
+    async criarCategoria(userId, { tipo, nome }) {
+      await db.query(
+        `insert into transaction_categories (user_id, type, name) values ($1, $2, $3)
+         on conflict (user_id, type, lower(name)) do nothing`,
+        [userId, tipo, nome]
+      )
+      const [c] = await db.query(
+        'select id, type, name from transaction_categories where user_id = $1 and type = $2 and lower(name) = lower($3)',
+        [userId, tipo, nome]
+      )
+      return { id: c.id, tipo: c.type, nome: c.name }
+    },
+    async removerCategoria(userId, id) {
+      const r = await db.query('delete from transaction_categories where id = $1 and user_id = $2 returning id', [id, userId])
+      return r.length > 0
+    },
     async obterMeta(userId) {
       const [m] = await db.query(
         `select name as nome, amount::text as valor, deadline as prazo from financial_goals where user_id = $1`,

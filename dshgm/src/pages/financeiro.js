@@ -4,6 +4,7 @@ import '../styles/financeiro.css'
 import { icon } from '../modules/icons.js'
 import { iniciarShell, mostrarAviso } from '../modules/shell.js'
 import { baixarArquivo, gerarRelatorioFinanceiro, nomeArquivoFinanceiro } from '../modules/financeiro-pdf.js'
+import { criarSeletorCategoria } from '../modules/seletor-categoria.js'
 import { financeiroApi } from '../services/financeiroApi.js'
 
 iniciarShell({ pagina: 'financeiro' })
@@ -34,6 +35,21 @@ const CORES = {
   Lazer: '#2a93ad',
   Outros: '#587676'
 }
+
+// Categorias criadas pelo usuário ganham uma cor da paleta, sempre a mesma para o mesmo nome.
+const PALETA_EXTRA = ['#a7f3d0', '#7dd3fc', '#fcd34d', '#c4b5fd', '#f9a8d4', '#fdba74', '#86efac', '#93c5fd']
+
+function corDaCategoria(nome) {
+  if (CORES[nome]) return CORES[nome]
+  let hash = 0
+  for (const letra of nome.toLowerCase()) hash = (hash * 31 + letra.charCodeAt(0)) >>> 0
+  return PALETA_EXTRA[hash % PALETA_EXTRA.length]
+}
+
+const iconeDaCategoria = (nome) => ICONES[nome] ?? 'tag'
+
+const normalizar = (texto) =>
+  texto.trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
 
 const MESES_LONGOS = [
   'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
@@ -103,6 +119,7 @@ dateInput.value = getToday()
 /* ---------- Dados da conta (API) ---------- */
 
 let transactions = []
+let customCategories = [] // { id, tipo, nome } criadas pelo usuário
 let goal = null
 let loaded = false
 let loadError = ''
@@ -113,11 +130,18 @@ function errorText(error) {
 
 async function loadData() {
   try {
-    const [list, savedGoal] = await Promise.all([financeiroApi.listar(), financeiroApi.obterMeta()])
+    const [list, savedGoal, categories] = await Promise.all([
+      financeiroApi.listar(),
+      financeiroApi.obterMeta(),
+      // Sem as categorias próprias a tela continua útil (as padrão e as já usadas aparecem do mesmo jeito).
+      financeiroApi.listarCategorias().catch(() => customCategories)
+    ])
     transactions = list
     goal = savedGoal
+    customCategories = categories
     loaded = true
     loadError = ''
+    fillCategories()
   } catch (error) {
     loadError = `Não foi possível carregar os dados (${errorText(error)}).`
   }
@@ -203,11 +227,63 @@ function periodLabel() {
 
 /* ---------- Tipo de movimentação e categorias ---------- */
 
+// Padrão + criadas pelo usuário + nomes já usados em movimentações do mesmo tipo (inclusive de categorias
+// removidas depois), sem repetir. "Outros" fica sempre por último.
+function categoriesFor(type) {
+  const base = CATEGORIAS[type] ?? CATEGORIAS.expense
+  const seen = new Set(base.map(normalizar))
+  const extras = []
+
+  const add = (name) => {
+    const key = normalizar(name)
+    if (!key || seen.has(key)) return
+    seen.add(key)
+    extras.push(name)
+  }
+
+  customCategories.filter((c) => c.tipo === type).forEach((c) => add(c.nome))
+  transactions.filter((t) => t.type === type).forEach((t) => add(t.category))
+
+  extras.sort((a, b) => a.localeCompare(b, 'pt-BR'))
+  const last = base.filter((name) => name === 'Outros')
+  return [...base.filter((name) => name !== 'Outros'), ...extras, ...last]
+}
+
 function fillCategories() {
-  const list = CATEGORIAS[typeInput.value] ?? CATEGORIAS.expense
+  const previous = categoryInput.value
+  const list = categoriesFor(typeInput.value)
 
   categoryInput.replaceChildren(...list.map((name) => new Option(name, name)))
+  categoryInput.value = list.includes(previous) ? previous : list[0]
+  categorySelect?.atualizar()
 }
+
+const isCustomCategory = (name) =>
+  customCategories.some((c) => c.tipo === typeInput.value && normalizar(c.nome) === normalizar(name))
+
+const categorySelect = criarSeletorCategoria({
+  select: categoryInput,
+  iconeDe: iconeDaCategoria,
+  corDe: corDaCategoria,
+  podeRemover: isCustomCategory,
+  async aoCriar(name) {
+    // Se já existe (padrão ou própria), só seleciona a existente.
+    const existing = [...categoryInput.options].find((o) => normalizar(o.value) === normalizar(name))
+    if (existing) return existing.value
+
+    const created = await financeiroApi.criarCategoria({ tipo: typeInput.value, nome: name })
+    customCategories = [...customCategories.filter((c) => c.id !== created.id), created]
+    fillCategories()
+    return created.nome
+  },
+  async aoRemover(name) {
+    const target = customCategories.find((c) => c.tipo === typeInput.value && normalizar(c.nome) === normalizar(name))
+    if (!target) return
+    await financeiroApi.removerCategoria(target.id)
+    customCategories = customCategories.filter((c) => c.id !== target.id)
+    fillCategories()
+  }
+})
 
 function setType(type) {
   typeInput.value = type
@@ -272,7 +348,7 @@ function renderCategoryChart(list) {
       const length = (value / total) * C
       const gap = entries.length > 1 ? 2 : 0
       const arc =
-        `<circle cx="60" cy="60" r="${R}" fill="none" stroke="${CORES[name] ?? '#86a3a3'}" ` +
+        `<circle cx="60" cy="60" r="${R}" fill="none" stroke="${corDaCategoria(name)}" ` +
         `stroke-width="12" stroke-dasharray="${Math.max(length - gap, 0.5)} ${C}" ` +
         `stroke-dashoffset="${-offset}" transform="rotate(-90 60 60)"/>`
       offset += length
@@ -297,7 +373,7 @@ function renderCategoryChart(list) {
 
     const dot = document.createElement('i')
     dot.className = 'dot'
-    dot.style.background = CORES[name] ?? '#86a3a3'
+    dot.style.background = corDaCategoria(name)
 
     const label = document.createElement('span')
     label.textContent = name
@@ -554,7 +630,7 @@ function renderTransactions(list) {
     const badge = document.createElement('span')
     badge.className = `transaction-icon ${transaction.type}`
     badge.innerHTML = icon(
-      transaction.type === 'saving' ? 'piggy' : ICONES[transaction.category] ?? 'dots'
+      transaction.type === 'saving' ? 'piggy' : iconeDaCategoria(transaction.category)
     )
 
     const info = document.createElement('div')
@@ -717,9 +793,15 @@ form.addEventListener('submit', async (event) => {
 document.addEventListener('visibilitychange', async () => {
   if (document.hidden || !loaded) return
   try {
-    const [list, savedGoal] = await Promise.all([financeiroApi.listar(), financeiroApi.obterMeta()])
+    const [list, savedGoal, categories] = await Promise.all([
+      financeiroApi.listar(),
+      financeiroApi.obterMeta(),
+      financeiroApi.listarCategorias().catch(() => customCategories)
+    ])
     transactions = list
     goal = savedGoal
+    customCategories = categories
+    fillCategories()
     renderAll()
   } catch {
     /* mantém o que já está na tela */

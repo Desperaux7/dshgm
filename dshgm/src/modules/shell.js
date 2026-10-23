@@ -104,17 +104,46 @@ export function iniciarShell({ pagina }) {
   const toggle = app.querySelector('#sidebar-toggle')
   const chevron = app.querySelector('#sidebar-chevron')
 
-  function definirMenu(aberto) {
+  // `persistir: false` é usado no recolhimento automático por rolagem: a escolha manual do usuário continua valendo.
+  function definirMenu(aberto, { persistir = true } = {}) {
     app.classList.toggle('menu-open', aberto)
     toggle.setAttribute('aria-expanded', String(aberto))
     toggle.setAttribute('aria-label', aberto ? 'Recolher menu' : 'Abrir menu')
-    salvarMenu(aberto)
+    if (persistir) salvarMenu(aberto)
+    if (aberto) referenciaRolagem = window.scrollY
   }
 
+  let referenciaRolagem = window.scrollY
   const alternar = () => definirMenu(!app.classList.contains('menu-open'))
   toggle.addEventListener('click', alternar)
   chevron.addEventListener('click', alternar)
   definirMenu(lerMenu())
+
+  // Recolhe sozinho ao descer a página (depois de rolar uma distância curta a partir do ponto em que o menu abriu).
+  const DISTANCIA_PARA_RECOLHER = 48
+  let aguardandoQuadro = false
+  window.addEventListener(
+    'scroll',
+    () => {
+      if (aguardandoQuadro || !app.classList.contains('menu-open')) return
+      aguardandoQuadro = true
+      requestAnimationFrame(() => {
+        aguardandoQuadro = false
+        if (!app.classList.contains('menu-open')) return
+        const y = window.scrollY
+        if (y - referenciaRolagem > DISTANCIA_PARA_RECOLHER) definirMenu(false, { persistir: false })
+        else if (y < referenciaRolagem) referenciaRolagem = y // subiu: a distância passa a contar a partir daqui
+      })
+    },
+    { passive: true }
+  )
+
+  // Recolhe ao trocar de sessão: clicar em qualquer item do menu (outra página ou âncora da mesma página).
+  // Gravado como recolhido para a página seguinte abrir com o menu fechado, sem "piscar" aberto.
+  app.querySelector('.sidebar-nav').addEventListener('click', (e) => {
+    if (e.target.closest('[data-nav]')) definirMenu(false)
+  })
+  window.addEventListener('hashchange', () => definirMenu(false, { persistir: false }))
 
   // Em telas pequenas o menu abre sobre o conteúdo: toque fora ou Esc fecha.
   const telaPequena = window.matchMedia('(max-width: 700px)')

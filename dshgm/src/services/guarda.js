@@ -1,6 +1,6 @@
 // Porta de entrada das páginas: exige login Google antes de carregar qualquer módulo do dashboard.
 // Também prepara a conta (importa preferências antigas do navegador e baixa as da conta) e trata sessão expirada.
-import { EVENTO_SESSAO_EXPIRADA, api, carregarSessao, entrarComGoogle } from './api.js'
+import { EVENTO_SESSAO_EXPIRADA, api, carregarSessao, entrarComGoogle, precarregar } from './api.js'
 
 const ESTILO = `
 .guarda{position:fixed;inset:0;z-index:99999;display:grid;place-items:center;padding:24px;
@@ -158,11 +158,14 @@ function relatarMigracao(relatorio) {
 }
 
 // Capas antigas do IndexedDB. Imagens acima do limite do servidor (600 KB) são reduzidas antes do envio.
-async function capasDoNavegador() {
-  const imagens = await import('./imagens.js')
+// O módulo de imagens só é carregado se houver capa para enviar (não atrasa quem não tem nada a migrar).
+function capasDoNavegador() {
+  let modulo
+  const carregar = () => (modulo ??= import('./imagens.js'))
   const LIMITE = 550 * 1024
   return {
     async ler(id) {
+      const imagens = await carregar()
       const lido = await imagens.lerCapa(id)
       if (!lido) return null
       const blob = lido.type ? lido : new Blob([lido], { type: 'image/jpeg' })
@@ -170,32 +173,40 @@ async function capasDoNavegador() {
       const reduzida = await imagens.redimensionarImagem(blob, { largura: 700, altura: 700, modo: 'conter', qualidade: 0.7 })
       return { blob: reduzida.blob, largura: reduzida.largura, altura: reduzida.altura }
     },
-    excluir: (id) => imagens.excluirCapa(id)
+    excluir: async (id) => (await carregar()).excluirCapa(id)
   }
 }
 
 async function prepararConta(usuario) {
   const cache = await import('./cacheLocal.js')
-  const migracao = await import('./migracao.js')
 
   // Cache de outra conta neste navegador nunca é copiado para esta. Precisa acontecer ANTES de importar
   // o módulo de preferências, que lê o cache ao ser carregado.
   const dono = cache.donoDoCache()
   if (dono && dono !== usuario.id) cache.limparCache()
+  const cacheDestaConta = cache.donoDoCache() === usuario.id
 
-  const preferencias = await import('../modules/preferencias.js')
+  const [preferencias, migracao] = await Promise.all([import('../modules/preferencias.js'), import('./migracao.js')])
   preferencias.definirUsuarioExterno({ nome: usuario.nome, foto: usuario.foto })
 
   const { relatorio } = await migracao.migrar({
     api,
     armazenamento: localStorage,
     userId: usuario.id,
-    capas: await capasDoNavegador()
+    capas: capasDoNavegador()
   })
   cache.definirDonoDoCache(usuario.id)
   relatarMigracao(relatorio)
 
-  await preferencias.sincronizarComServidor()
+  // Neste navegador já há preferências desta conta em cache: a página abre na hora com elas e a versão do
+  // servidor entra em segundo plano (o evento de preferências atualiza nome, avatar e cartões sem recarregar).
+  // Sem cache (primeiro acesso aqui), espera a resposta para não mostrar valores padrão que depois mudam.
+  const sincronizacao = preferencias.sincronizarComServidor()
+  if (cacheDestaConta) {
+    sincronizacao.catch((erro) => console.warn('Preferências não sincronizadas agora:', erro.message))
+    return
+  }
+  await sincronizacao
 }
 
 function vigiarSessao() {
@@ -207,7 +218,9 @@ function vigiarSessao() {
 
 /* ---------- API pública ---------- */
 
-export async function exigirLogin() {
+// `precarregar`: caminhos GET da API que a página vai pedir logo em seguida. Eles saem já na confirmação da
+// sessão, em paralelo com a preparação da conta e o download dos módulos da página.
+export async function exigirLogin({ precarregar: caminhos = [] } = {}) {
   const erroDeLogin = lerErroDeLogin()
   let usuario
   for (;;) {
@@ -223,6 +236,8 @@ export async function exigirLogin() {
     telaLogin(erroDeLogin)
     return new Promise(() => {}) // a página só carrega depois do login (o navegador sai daqui para o Google)
   }
+
+  precarregar(['/preferencias', ...caminhos])
 
   try {
     await prepararConta(usuario)

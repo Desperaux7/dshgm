@@ -45,21 +45,139 @@ export function categoriasEm(lista) {
   return [...CATEGORIAS_PADRAO, ...extras]
 }
 
-// Ícone do site (favicon). Se não carregar, mostra a inicial do nome.
+/* ---------- Ícones dos sites ---------- */
+
+// Nenhum serviço de favicon conhece todos os sites, então cada site passa por uma sequência de fontes:
+// 1) DuckDuckGo, 2) o próprio site (/favicon.ico), 3) Google. Cada fonte é tentada primeiro com o endereço
+// exato e depois com o domínio principal (ex.: "app.exemplo.com" -> "exemplo.com"). Se nada servir, fica a inicial.
+const FONTES_ICONE = [
+  { id: 'ddg', url: (h) => `https://icons.duckduckgo.com/ip3/${encodeURIComponent(h)}.ico` },
+  { id: 'site', url: (h) => `https://${h}/favicon.ico` },
+  // O Google responde com um globo genérico de 16 px quando não conhece o site: esse resultado é recusado.
+  { id: 'google', url: (h) => `https://www.google.com/s2/favicons?domain=${encodeURIComponent(h)}&sz=64`, recusarMinusculo: true }
+]
+const SUFIXOS_GENERICOS = new Set(['com', 'org', 'net', 'gov', 'edu', 'co', 'ac', 'mil'])
+const CHAVE_ICONES = 'dashboard-favicons'
+const LIMITE_CACHE_ICONES = 150
+
+// Domínio principal aproximado, sem lista pública de sufixos: só remove o primeiro rótulo quando sobra um
+// domínio plausível (evita transformar "empresa.com.br" em "com.br").
+export function dominioPrincipal(host) {
+  const partes = host.split('.')
+  if (partes.length < 3) return null
+  const resto = partes.slice(1)
+  if (SUFIXOS_GENERICOS.has(resto[0])) return null
+  return resto.join('.')
+}
+
+function lerCacheIcones() {
+  try {
+    return JSON.parse(localStorage.getItem(CHAVE_ICONES)) ?? {}
+  } catch {
+    return {}
+  }
+}
+
+function lembrarIcone(host, url) {
+  try {
+    const cache = lerCacheIcones()
+    delete cache[host]
+    cache[host] = url // reinsere no fim: os mais usados ficam
+    const chaves = Object.keys(cache)
+    for (const antiga of chaves.slice(0, Math.max(0, chaves.length - LIMITE_CACHE_ICONES))) delete cache[antiga]
+    localStorage.setItem(CHAVE_ICONES, JSON.stringify(cache))
+  } catch {
+    /* sem armazenamento: o ícone só não fica em cache */
+  }
+}
+
+function esquecerIcone(host) {
+  try {
+    const cache = lerCacheIcones()
+    if (!(host in cache)) return
+    delete cache[host]
+    localStorage.setItem(CHAVE_ICONES, JSON.stringify(cache))
+  } catch {
+    /* ignora */
+  }
+}
+
+function carregarImagem(url, { recusarMinusculo = false } = {}) {
+  return new Promise((resolver) => {
+    const imagem = new Image()
+    imagem.alt = ''
+    imagem.referrerPolicy = 'no-referrer'
+    imagem.decoding = 'async'
+    const limite = setTimeout(() => resolver(null), 6000)
+    imagem.onload = () => {
+      clearTimeout(limite)
+      const minusculo = imagem.naturalWidth <= 16 && imagem.naturalHeight <= 16
+      resolver(imagem.naturalWidth === 0 || (recusarMinusculo && minusculo) ? null : imagem)
+    }
+    imagem.onerror = () => {
+      clearTimeout(limite)
+      resolver(null)
+    }
+    imagem.src = url
+  })
+}
+
+async function buscarIcone(host) {
+  const candidatos = [host, dominioPrincipal(host)].filter(Boolean)
+  for (const fonte of FONTES_ICONE) {
+    for (const candidato of candidatos) {
+      const url = fonte.url(candidato)
+      const imagem = await carregarImagem(url, fonte)
+      if (imagem) return { url, imagem }
+    }
+  }
+  return null
+}
+
+const buscasEmAndamento = new Map() // host -> Promise: vários cartões do mesmo site fazem uma busca só
+
+function iconeDoSite(host) {
+  if (!buscasEmAndamento.has(host)) {
+    const busca = buscarIcone(host).finally(() => buscasEmAndamento.delete(host))
+    buscasEmAndamento.set(host, busca)
+  }
+  return buscasEmAndamento.get(host)
+}
+
+// Ícone do site (favicon). Enquanto carrega, ou se nenhuma fonte tiver o ícone, mostra a inicial do nome.
 export function criarIconeSite(favorito) {
   const caixa = document.createElement('span')
   caixa.className = 'site-icon'
   caixa.setAttribute('aria-hidden', 'true')
+  caixa.textContent = favorito.nome.trim().charAt(0).toUpperCase() || '?'
 
-  const inicial = favorito.nome.trim().charAt(0).toUpperCase() || '?'
-  caixa.textContent = inicial
+  const host = hostDe(favorito.url)
 
-  const imagem = new Image()
-  imagem.alt = ''
-  imagem.referrerPolicy = 'no-referrer'
-  imagem.decoding = 'async'
-  imagem.onload = () => caixa.replaceChildren(imagem)
-  imagem.src = `https://www.google.com/s2/favicons?domain=${encodeURIComponent(hostDe(favorito.url))}&sz=64`
+  function mostrar(url) {
+    const imagem = new Image()
+    imagem.alt = ''
+    imagem.referrerPolicy = 'no-referrer'
+    imagem.decoding = 'async'
+    imagem.onload = () => caixa.replaceChildren(imagem)
+    imagem.onerror = () => {
+      // O ícone guardado deixou de funcionar (site mudou): descarta e procura de novo.
+      esquecerIcone(host)
+      procurar()
+    }
+    imagem.src = url
+  }
+
+  function procurar() {
+    iconeDoSite(host).then((achado) => {
+      if (!achado) return
+      lembrarIcone(host, achado.url)
+      caixa.replaceChildren(achado.imagem.cloneNode())
+    })
+  }
+
+  const guardado = lerCacheIcones()[host]
+  if (guardado) mostrar(guardado)
+  else procurar()
 
   return caixa
 }

@@ -11,7 +11,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Montserrat:wght@200;300;400;500;600;700&display=swap">
   <script>
-    /* Aplica as preferências antes da primeira pintura (evita piscar a cor padrão). */
+    /* Aplica as preferências. */
     try {
       var p = JSON.parse(localStorage.getItem('dashboard-preferencias')) || {}
       var r = document.documentElement
@@ -98,7 +98,7 @@
           </button>
           <button class="link-btn" id="lib-cover-remove" type="button" hidden>Remover capa</button>
           <input id="lib-cover-input" type="file" accept="image/*" hidden>
-          <p class="drawer-note">Padrão Steam Grid: 600×900 (vertical) ou 920×430 (horizontal).</p>
+          <p class="drawer-note" id="lib-cover-hint">Modelo de jogo: capa horizontal no padrão Steam Grid (920×430) ou vertical (600×900).</p>
         </div>
 
         <div class="lib-fields">
@@ -115,11 +115,6 @@
           <div class="field">
             Situação
             <div class="toggle-group" id="lib-state" role="group" aria-label="Situação"></div>
-          </div>
-
-          <div class="field" id="lib-progress-field">
-            <span class="field-split">Progresso do jogo <output id="lib-progress-out">0%</output></span>
-            <input class="range" id="lib-progress" type="range" min="0" max="100" step="5" value="0" aria-label="Progresso do jogo">
           </div>
 
           <label class="field">

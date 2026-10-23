@@ -129,6 +129,40 @@ select:focus-visible {
   background: var(--cyan);
 }
 
+/* Barra de rolagem no padrão da página: fina, trilho transparente e destaque na cor de ênfase.
+   scrollbar-color/width cobrem Firefox e Chrome atual; os pseudo-elementos cobrem Safari e Chrome antigo. */
+:root {
+  color-scheme: dark;
+  scrollbar-color: rgba(var(--cyan-rgb), 0.3) transparent;
+}
+
+* {
+  scrollbar-width: thin;
+}
+
+*::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+*::-webkit-scrollbar-track,
+*::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+*::-webkit-scrollbar-thumb {
+  background: rgba(var(--cyan-rgb), 0.24);
+  background-clip: padding-box;
+  border: 3px solid transparent;
+  border-radius: 999px;
+  transition: background 0.2s;
+}
+
+*::-webkit-scrollbar-thumb:hover {
+  background: rgba(var(--cyan-rgb), 0.5);
+  background-clip: padding-box;
+}
+
 .icon {
   width: 20px;
   height: 20px;

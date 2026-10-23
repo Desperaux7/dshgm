@@ -6,7 +6,7 @@ import { iniciarSpotify } from '../modules/spotify.js'
 import { iniciarPesquisaGoogle } from '../modules/google-search.js'
 import { iniciarAtalhos } from '../modules/favoritos.js'
 import { iniciarAgendaInicio } from '../modules/agenda.js'
-import { EVENTO, nomeExibicao } from '../modules/preferencias.js'
+import { EVENTO, nomeSaudacao } from '../modules/preferencias.js'
 import { financeiroApi } from '../services/financeiroApi.js'
 
 // O shell injeta o menu lateral, o sprite de ícones, a conta e o painel de perfil.
@@ -26,26 +26,19 @@ function iniciarSaudacao() {
 
   if (!titulo) return
 
-  function atualizarNome() {
-    if (nome) nome.textContent = nomeExibicao()
-  }
-
-  function atualizarSaudacao() {
+  // Sem nome na conta, a saudação fica só com "Bom dia" (nada de nome fixo para quem não é o dono do código).
+  function atualizar() {
     const hora = new Date().getHours()
+    const saudacao = hora >= 5 && hora < 12 ? 'Bom dia' : hora >= 12 && hora < 18 ? 'Boa tarde' : 'Boa noite'
+    const nomeAtual = nomeSaudacao()
 
-    if (hora >= 5 && hora < 12) {
-      titulo.textContent = 'Bom dia,'
-    } else if (hora >= 12 && hora < 18) {
-      titulo.textContent = 'Boa tarde,'
-    } else {
-      titulo.textContent = 'Boa noite,'
-    }
+    titulo.textContent = nomeAtual ? `${saudacao},` : saudacao
+    if (nome) nome.textContent = nomeAtual
   }
 
-  atualizarNome()
-  atualizarSaudacao()
-  setInterval(atualizarSaudacao, 60000)
-  window.addEventListener(EVENTO, atualizarNome)
+  atualizar()
+  setInterval(atualizar, 60000)
+  window.addEventListener(EVENTO, atualizar)
 }
 
 iniciarSaudacao()

@@ -241,7 +241,38 @@ function formatarTempo(ms) {
   return `${minutes}:${String(seconds).padStart(2, "0")}`;
 }
 
+// Alterna o ícone do botão central: pause enquanto toca, play quando pausado ou parado.
+const ICONE_PLAY = "M8 5v14l11-7-11-7Z";
+const ICONE_PAUSE = "M7 5h3.5v14H7zM13.5 5H17v14h-3.5z";
+let iconeAtual = null;
+
+function atualizarIconePlay() {
+  const botao = document.querySelector("#spotify-play-pause");
+  const svg = document.querySelector("#spotify-play-icon");
+  const caminho = svg?.querySelector("path");
+
+  if (!botao || !caminho) {
+    return;
+  }
+
+  const tocando = Boolean(playbackIsPlaying);
+
+  if (iconeAtual === tocando) {
+    return;
+  }
+
+  iconeAtual = tocando;
+  caminho.setAttribute("d", tocando ? ICONE_PAUSE : ICONE_PLAY);
+
+  const rotulo = tocando ? "Pausar" : "Reproduzir";
+  botao.setAttribute("aria-label", rotulo);
+  botao.setAttribute("title", rotulo);
+  botao.classList.toggle("is-playing", tocando);
+}
+
 function atualizarBarraProgresso() {
+  atualizarIconePlay();
+
   const progressElement = document.querySelector("#spotify-progress");
   const currentTimeElement = document.querySelector(
     "#spotify-current-time"
@@ -757,6 +788,7 @@ if (isSpotifyConnected()) {
   );
 }
 
+  atualizarIconePlay();
   iniciarAtualizacaoProgresso();
 
   // Conectar ou desconectar a conta.

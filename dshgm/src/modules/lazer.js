@@ -20,28 +20,19 @@ export const statusDe = (id) => STATUS.find((s) => s.id === id) ?? STATUS[1]
   {
     id, tipo: 'jogo' | 'filme' | 'serie', titulo, plataforma,
     status: 'pendente' | 'andamento' | 'concluido',
-    progresso: 0..100,                 // só jogos
+    progresso: 0..100,                 // legado: não é mais exibido nem editado (ver aplicarRegras)
     capa: { largura, altura, versao } | null,   // a imagem fica na conta (GET /api/lazer/:id/capa)
     criado, atualizado
   }
 */
 
-// Mantém status e progresso coerentes entre si.
-export function aplicarRegras(item, alterado) {
-  const proximo = { ...item }
-  if (proximo.tipo !== 'jogo') proximo.progresso = 0
-
-  if (alterado === 'status') {
-    if (proximo.status === 'concluido' && proximo.tipo === 'jogo') proximo.progresso = 100
-    if (proximo.status === 'pendente') proximo.progresso = 0
-  } else if (alterado === 'progresso' && proximo.tipo === 'jogo') {
-    if (proximo.progresso >= 100) proximo.status = 'concluido'
-    else if (proximo.progresso > 0 && proximo.status !== 'andamento') proximo.status = 'andamento'
-  }
-  return proximo
+// O progresso em porcentagem foi removido da tela (exigiria atualização manual e não refletia o jogo de verdade).
+// A coluna continua na conta por compatibilidade, mas a tela não a exibe nem a envia: o status é a única informação.
+export function aplicarRegras(item) {
+  return { ...item, progresso: 0 }
 }
 
-// Itens da conta (o servidor já aplica as regras de status/progresso e devolve o modelo normalizado).
+// Itens da conta (o servidor devolve o modelo normalizado).
 export const carregarItens = () => lazerApi.listar()
 
 /* ---------- Capas (cache de URLs temporárias) ---------- */
@@ -81,3 +72,16 @@ export function esquecerCapa(id) {
 }
 
 export const capaHorizontal = (capa) => Boolean(capa) && capa.largura / capa.altura > 1.2
+
+/*
+  Dois modelos de cartão, cada um com a capa no formato do seu tipo:
+    jogo         -> cápsula horizontal (padrão Steam, 920×430)
+    filme/série  -> pôster vertical (2:3, ex.: 600×900)
+*/
+export const modeloDe = (tipo) => (tipo === 'jogo' ? 'jogo' : 'midia')
+
+// A capa preenche o quadro quando tem o mesmo formato dele; senão aparece inteira sobre um fundo desfocado.
+export function capaPrecisaConter(capa, modelo) {
+  if (!capa) return false
+  return modelo === 'jogo' ? !capaHorizontal(capa) : capaHorizontal(capa)
+}

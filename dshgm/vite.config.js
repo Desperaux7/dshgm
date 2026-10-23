@@ -6,7 +6,6 @@ const root = fileURLToPath(new URL('.', import.meta.url))
 
 export default defineConfig({
   server: {
-    // Em desenvolvimento a API (npm run dev:api) roda na porta 3001; o proxy mantém tudo na mesma origem (cookies).
     proxy: { '/api': { target: `http://127.0.0.1:${process.env.API_PORT ?? 3001}` } }
   },
   build: {

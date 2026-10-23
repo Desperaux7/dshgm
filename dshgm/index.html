@@ -39,9 +39,20 @@
           <div class="hero-center">
             <div class="hero-row">
               <h1 class="hero-greeting">
-                <span id="welcome-title">Bom dia,</span>
-                <span id="welcome-name">Gustavo</span>
+                <span id="welcome-title">Bom dia</span>
+                <span id="welcome-name"></span>
               </h1>
+              <script>
+                /* Nome da conta guardado no último acesso: aparece antes do servidor responder (nunca um nome fixo). */
+                try {
+                  var nome = localStorage.getItem('dashboard-nome-exibicao')
+                  var titulo = document.getElementById('welcome-title')
+                  if (nome) {
+                    document.getElementById('welcome-name').textContent = nome
+                    titulo.textContent = titulo.textContent + ','
+                  }
+                } catch (e) {}
+              </script>
 
               <div class="hero-info">
                 <div class="weather" id="weather" hidden>
@@ -227,7 +238,7 @@
                 <button id="spotify-previous" type="button" aria-label="Música anterior" title="Música anterior">
                   <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 5v14M19 6l-9 6 9 6V6Z" /></svg>
                 </button>
-                <button id="spotify-play-pause" type="button" aria-label="Reproduzir ou pausar" title="Reproduzir ou pausar">
+                <button id="spotify-play-pause" type="button" aria-label="Reproduzir" title="Reproduzir">
                   <svg id="spotify-play-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14l11-7-11-7Z" /></svg>
                 </button>
                 <button id="spotify-next" type="button" aria-label="Próxima música" title="Próxima música">

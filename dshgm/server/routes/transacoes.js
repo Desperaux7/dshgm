@@ -1,6 +1,6 @@
 import { Router } from 'express'
 import { z } from 'zod'
-import { assincrono, naoEncontrado } from '../lib/errors.js'
+import { assincrono, naoEncontrado, requisicaoInvalida } from '../lib/errors.js'
 import { formatarNoFuso } from '../lib/dates.js'
 import { uuidDaRota, validar, zData, zTexto, zValor } from '../lib/validate.js'
 
@@ -50,6 +50,34 @@ export function criarRotasTransacoes({ repos }) {
 
   router.delete('/:id', assincrono(async (req, res) => {
     if (!(await transacoes.excluir(req.usuario.id, uuidDaRota(req.params.id)))) throw naoEncontrado('Movimentação não encontrada.')
+    res.status(204).end()
+  }))
+
+  return router
+}
+
+const zCategoria = z.object({ tipo: zTipo, nome: zTexto(1, 40) })
+const LIMITE_CATEGORIAS = 60
+
+// Categorias criadas pelo usuário. As padrão ficam no front; as movimentações guardam só o nome.
+export function criarRotasCategorias({ repos }) {
+  const router = Router()
+  const { transacoes } = repos
+
+  router.get('/', assincrono(async (req, res) => {
+    res.json({ categorias: await transacoes.listarCategorias(req.usuario.id) })
+  }))
+
+  router.post('/', assincrono(async (req, res) => {
+    const c = validar(zCategoria, req.body)
+    if ((await transacoes.contarCategorias(req.usuario.id)) >= LIMITE_CATEGORIAS) {
+      throw requisicaoInvalida(`Limite de ${LIMITE_CATEGORIAS} categorias próprias atingido.`)
+    }
+    res.status(201).json({ categoria: await transacoes.criarCategoria(req.usuario.id, c) })
+  }))
+
+  router.delete('/:id', assincrono(async (req, res) => {
+    if (!(await transacoes.removerCategoria(req.usuario.id, uuidDaRota(req.params.id)))) throw naoEncontrado('Categoria não encontrada.')
     res.status(204).end()
   }))
 
