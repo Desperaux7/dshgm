@@ -1,0 +1,39 @@
+[build]
+  command = "npm run build"
+  publish = "dist"
+  functions = "netlify/functions"
+
+[build.environment]
+  NODE_VERSION = "20"
+
+[functions]
+  node_bundler = "esbuild"
+
+# API Express (função serverless). O código também aceita o prefixo /.netlify/functions/api.
+[[redirects]]
+  from = "/api/*"
+  to = "/.netlify/functions/api/:splat"
+  status = 200
+  force = true
+
+# Retorno OAuth do Spotify (o front trata o callback em index.html).
+[[redirects]]
+  from = "/callback"
+  to = "/index.html"
+  status = 200
+
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Content-Type-Options = "nosniff"
+    Referrer-Policy = "strict-origin-when-cross-origin"
+    X-Frame-Options = "DENY"
+    Permissions-Policy = "geolocation=(self), camera=(), microphone=()"
+    Strict-Transport-Security = "max-age=31536000; includeSubDomains"
+    # Política completa em modo de observação: valide no console do navegador antes de torná-la obrigatória.
+    Content-Security-Policy-Report-Only = "default-src 'self'; script-src 'self' https://sdk.scdn.co; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; connect-src 'self' https://api.spotify.com https://accounts.spotify.com https://api.open-meteo.com https://geocoding-api.open-meteo.com; frame-src https://sdk.scdn.co; media-src 'self' blob: https:; frame-ancestors 'none'; base-uri 'self'; form-action 'self' https://www.google.com"
+
+[[headers]]
+  for = "/api/*"
+  [headers.values]
+    Cache-Control = "no-store"

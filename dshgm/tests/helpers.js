@@ -24,13 +24,13 @@ export function envDeTeste(extra = {}) {
 }
 
 // Banco PostgreSQL real (WASM) em memória, com as MESMAS migrações usadas em produção.
-export async function criarAmbiente({ limitar = false, env = {} } = {}) {
+export async function criarAmbiente({ limitar = false, env = {}, relogio } = {}) {
   const pg = new PGlite()
   await aplicarMigracoes({ exec: (sql) => pg.exec(sql), rows: async (sql, p) => (await pg.query(sql, p)).rows }, PASTA_MIGRACOES)
   const db = { query: async (texto, params = []) => (await pg.query(texto, params)).rows }
   const google = criarGoogleFalso()
   const config = carregarConfig(envDeTeste(env))
-  const servidor = criarApp({ config, db, fetchImpl: google.fetch, limitar, atrasosRede: [1, 1] })
+  const servidor = criarApp({ config, db, fetchImpl: google.fetch, limitar, atrasosRede: [1, 1], relogio })
   return { ...servidor, config, db, pg, google, fechar: () => pg.close() }
 }
 

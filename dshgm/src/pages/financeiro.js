@@ -5,7 +5,9 @@ import { icon } from '../modules/icons.js'
 import { iniciarShell, mostrarAviso } from '../modules/shell.js'
 import { baixarArquivo, gerarRelatorioFinanceiro, nomeArquivoFinanceiro } from '../modules/financeiro-pdf.js'
 import { criarSeletorCategoria } from '../modules/seletor-categoria.js'
+import { cartoesApi } from '../services/cartoesApi.js'
 import { financeiroApi } from '../services/financeiroApi.js'
+import { iniciarCartoes } from './cartoes.js'
 
 iniciarShell({ pagina: 'financeiro' })
 
@@ -128,14 +130,38 @@ function errorText(error) {
   return error?.message || 'Não foi possível concluir a operação. Tente novamente.'
 }
 
+// Consumo do cartão de crédito como despesas (uma por parcela, no mês dela). Vem do servidor já pronto e é só
+// leitura aqui: edição e exclusão acontecem na seção "Cartões de crédito". O pagamento da fatura NÃO entra
+// nesta lista (é saída de caixa) — contar os dois seria somar a mesma despesa duas vezes.
+const isCardEntry = (item) => item.origem === 'cartao'
+
+async function fetchAll() {
+  const [list, savedGoal, categories, cardConsumption] = await Promise.all([
+    financeiroApi.listar(),
+    financeiroApi.obterMeta(),
+    // Sem as categorias próprias a tela continua útil (as padrão e as já usadas aparecem do mesmo jeito).
+    financeiroApi.listarCategorias().catch(() => customCategories),
+    // Se o módulo de cartões falhar, o resto do Financeiro continua funcionando com o que já tinha.
+    cartoesApi.consumo().catch(() => transactions.filter(isCardEntry))
+  ])
+  return { list: [...list, ...cardConsumption], savedGoal, categories }
+}
+
+// Só o consumo do cartão mudou (compra, estorno, exclusão): troca essas linhas e redesenha.
+async function reloadCardConsumption() {
+  try {
+    const consumption = await cartoesApi.consumo()
+    transactions = [...transactions.filter((item) => !isCardEntry(item)), ...consumption]
+    fillCategories()
+    renderAll()
+  } catch {
+    /* mantém o que já está na tela */
+  }
+}
+
 async function loadData() {
   try {
-    const [list, savedGoal, categories] = await Promise.all([
-      financeiroApi.listar(),
-      financeiroApi.obterMeta(),
-      // Sem as categorias próprias a tela continua útil (as padrão e as já usadas aparecem do mesmo jeito).
-      financeiroApi.listarCategorias().catch(() => customCategories)
-    ])
+    const { list, savedGoal, categories } = await fetchAll()
     transactions = list
     goal = savedGoal
     customCategories = categories
@@ -258,31 +284,36 @@ function fillCategories() {
   categorySelect?.atualizar()
 }
 
-const isCustomCategory = (name) =>
-  customCategories.some((c) => c.tipo === typeInput.value && normalizar(c.nome) === normalizar(name))
+const isCustomCategoryOf = (type, name) =>
+  customCategories.some((c) => c.tipo === type && normalizar(c.nome) === normalizar(name))
+
+// Criar/remover categorias próprias, para qualquer tipo (usado pelo formulário de movimentações e pelo de cartões).
+async function createCategory(type, name) {
+  // Se já existe (padrão, própria ou já usada em movimentações), só usa a existente.
+  const existing = categoriesFor(type).find((n) => normalizar(n) === normalizar(name))
+  if (existing) return existing
+
+  const created = await financeiroApi.criarCategoria({ tipo: type, nome: name })
+  customCategories = [...customCategories.filter((c) => c.id !== created.id), created]
+  fillCategories()
+  return created.nome
+}
+
+async function removeCategory(type, name) {
+  const target = customCategories.find((c) => c.tipo === type && normalizar(c.nome) === normalizar(name))
+  if (!target) return
+  await financeiroApi.removerCategoria(target.id)
+  customCategories = customCategories.filter((c) => c.id !== target.id)
+  fillCategories()
+}
 
 const categorySelect = criarSeletorCategoria({
   select: categoryInput,
   iconeDe: iconeDaCategoria,
   corDe: corDaCategoria,
-  podeRemover: isCustomCategory,
-  async aoCriar(name) {
-    // Se já existe (padrão ou própria), só seleciona a existente.
-    const existing = [...categoryInput.options].find((o) => normalizar(o.value) === normalizar(name))
-    if (existing) return existing.value
-
-    const created = await financeiroApi.criarCategoria({ tipo: typeInput.value, nome: name })
-    customCategories = [...customCategories.filter((c) => c.id !== created.id), created]
-    fillCategories()
-    return created.nome
-  },
-  async aoRemover(name) {
-    const target = customCategories.find((c) => c.tipo === typeInput.value && normalizar(c.nome) === normalizar(name))
-    if (!target) return
-    await financeiroApi.removerCategoria(target.id)
-    customCategories = customCategories.filter((c) => c.id !== target.id)
-    fillCategories()
-  }
+  podeRemover: (name) => isCustomCategoryOf(typeInput.value, name),
+  aoCriar: (name) => createCategory(typeInput.value, name),
+  aoRemover: (name) => removeCategory(typeInput.value, name)
 })
 
 function setType(type) {
@@ -337,7 +368,12 @@ function renderCategoryChart(list) {
     return
   }
 
-  const entries = [...totals.entries()].sort((a, b) => b[1] - a[1])
+  // Estornos podem zerar uma categoria no período: ela simplesmente não aparece na rosca.
+  const entries = [...totals.entries()].filter(([, value]) => value > 0).sort((a, b) => b[1] - a[1])
+  if (entries.length === 0) {
+    categoryChart.append(emptyMessage('Sem despesas neste período.'))
+    return
+  }
   const total = entries.reduce((sum, [, value]) => sum + value, 0)
   const R = 42
   const C = 2 * Math.PI * R
@@ -630,7 +666,7 @@ function renderTransactions(list) {
     const badge = document.createElement('span')
     badge.className = `transaction-icon ${transaction.type}`
     badge.innerHTML = icon(
-      transaction.type === 'saving' ? 'piggy' : iconeDaCategoria(transaction.category)
+      isCardEntry(transaction) ? 'credit-card' : transaction.type === 'saving' ? 'piggy' : iconeDaCategoria(transaction.category)
     )
 
     const info = document.createElement('div')
@@ -640,7 +676,7 @@ function renderTransactions(list) {
     title.textContent = transaction.description
 
     const details = document.createElement('p')
-    details.textContent = `${transaction.category} · ${formatDate(transaction.date)}`
+    details.textContent = `${transaction.category} · ${formatDate(transaction.date)}${isCardEntry(transaction) ? ` · ${transaction.cartaoNome}` : ''}`
 
     info.append(title, details)
 
@@ -651,7 +687,9 @@ function renderTransactions(list) {
     value.className = `transaction-value ${transaction.type}`
 
     const signal = { income: '+ ', expense: '− ', saving: '' }[transaction.type] ?? ''
-    value.textContent = `${signal}${formatCurrency(transaction.amount)}`
+    // Estorno/crédito no cartão chega como despesa negativa: aparece como valor a favor.
+    const refund = isCardEntry(transaction) && transaction.amount < 0
+    value.textContent = refund ? `+ ${formatCurrency(-transaction.amount)}` : `${signal}${formatCurrency(transaction.amount)}`
 
     const deleteButton = document.createElement('button')
     deleteButton.className = 'delete-button'
@@ -678,7 +716,16 @@ function renderTransactions(list) {
       renderAll()
     })
 
-    right.append(value, deleteButton)
+    if (isCardEntry(transaction)) {
+      // Lançamento do cartão: só leitura aqui. Para alterar, use a seção "Cartões de crédito".
+      const tag = document.createElement('span')
+      tag.className = 'card-origin-tag'
+      tag.textContent = 'Cartão'
+      tag.title = 'Gerenciado na seção Cartões de crédito'
+      right.append(value, tag)
+    } else {
+      right.append(value, deleteButton)
+    }
     item.append(badge, info, right)
     listElement.appendChild(item)
   })
@@ -793,11 +840,7 @@ form.addEventListener('submit', async (event) => {
 document.addEventListener('visibilitychange', async () => {
   if (document.hidden || !loaded) return
   try {
-    const [list, savedGoal, categories] = await Promise.all([
-      financeiroApi.listar(),
-      financeiroApi.obterMeta(),
-      financeiroApi.listarCategorias().catch(() => customCategories)
-    ])
+    const { list, savedGoal, categories } = await fetchAll()
     transactions = list
     goal = savedGoal
     customCategories = categories
@@ -811,3 +854,20 @@ document.addEventListener('visibilitychange', async () => {
 setType('expense')
 renderAll()
 loadData()
+
+// Seção "Cartões de crédito": usa as mesmas categorias das despesas e avisa esta tela quando o consumo muda.
+iniciarCartoes({
+  categorias: {
+    opcoes: () => categoriesFor('expense'),
+    icone: iconeDaCategoria,
+    cor: corDaCategoria,
+    podeRemover: (name) => isCustomCategoryOf('expense', name),
+    criar: (name) => createCategory('expense', name),
+    remover: (name) => removeCategory('expense', name)
+  },
+  formatarMoeda: formatCurrency,
+  formatarData: formatDate,
+  mostrarAviso,
+  aoAlterar: reloadCardConsumption,
+  hoje: getToday
+})

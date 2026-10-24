@@ -11,13 +11,14 @@ import { criarRotasCalendario } from './routes/calendario.js'
 import { criarRotasPerfil } from './routes/perfil.js'
 import { criarRotasTarefas } from './routes/tarefas.js'
 import { criarRotasCategorias, criarRotasMeta, criarRotasTransacoes } from './routes/transacoes.js'
+import { criarRotasCartoes } from './routes/cartoes.js'
 import { criarRotasFavoritos } from './routes/favoritos.js'
 import { criarRotasLazer } from './routes/lazer.js'
 import { criarRotasEventos } from './routes/eventos.js'
 import { criarRotasImportacao } from './routes/importacao.js'
 
 // Fábrica do app: banco, config e cliente Google são injetados (produção usa Neon; testes usam PGlite e Google simulado).
-export function criarApp({ config, db, fetchImpl, limitar = true, atrasosRede }) {
+export function criarApp({ config, db, fetchImpl, limitar = true, atrasosRede, relogio }) {
   const repos = criarRepositorios(db)
   const google = criarClienteGoogle({ config, fetchImpl, atrasos: atrasosRede })
   const calendario = criarServicoCalendario({ repos, google, config })
@@ -44,6 +45,7 @@ export function criarApp({ config, db, fetchImpl, limitar = true, atrasosRede })
   privado.use('/transacoes', criarRotasTransacoes({ repos }))
   privado.use('/meta', criarRotasMeta({ repos }))
   privado.use('/categorias', criarRotasCategorias({ repos }))
+  privado.use('/cartoes', criarRotasCartoes({ repos, relogio }))
   privado.use('/favoritos', criarRotasFavoritos({ repos }))
   privado.use('/lazer', criarRotasLazer({ repos }))
   privado.use('/eventos', criarRotasEventos({ repos, calendario }))

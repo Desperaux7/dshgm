@@ -9,16 +9,29 @@ import { icon } from './icons.js'
 
   Opções:
     select        <select> que guarda o valor
-    iconeDe(nome) nome do ícone da categoria
-    corDe(nome)   cor (hex) da bolinha/ícone da categoria
-    podeRemover(nome)   true para categorias criadas pelo usuário (mostram o botão de remover)
-    aoCriar(nome)       async; cria a categoria e devolve o nome final (lança Error com a mensagem a exibir)
-    aoRemover(nome)     async; remove a categoria (lança Error com a mensagem a exibir)
+    iconeDe(valor)  nome do ícone da opção (opcional: sem ele a lista não mostra ícones)
+    corDe(valor)    cor (hex) do ícone da opção (opcional)
+    podeRemover(valor)  true para opções que o usuário pode apagar (mostram o botão de remover)
+    aoCriar(nome)       async; cria uma opção e devolve o valor final (lança Error com a mensagem a exibir).
+                        Sem ele, o rodapé "Nova categoria" não aparece (uso como lista simples).
+    aoRemover(valor)    async; remove a opção (lança Error com a mensagem a exibir)
+    rotuloNova          texto do botão de criação (padrão: "Nova categoria")
+    placeholder         texto quando nada está selecionado
+  O rótulo mostrado é o texto da <option>; o valor é o `value` dela.
 */
 
 let contador = 0
 
-export function criarSeletorCategoria({ select, iconeDe, corDe, podeRemover, aoCriar, aoRemover }) {
+export function criarSeletorCategoria({
+  select,
+  iconeDe,
+  corDe,
+  podeRemover,
+  aoCriar,
+  aoRemover,
+  rotuloNova = 'Nova categoria',
+  placeholder = 'Escolha uma categoria'
+}) {
   const id = `cat-select-${++contador}`
 
   const raiz = document.createElement('div')
@@ -33,7 +46,7 @@ export function criarSeletorCategoria({ select, iconeDe, corDe, podeRemover, aoC
     <div class="cat-menu" hidden>
       <ul class="cat-list" id="${id}-lista" role="listbox" tabindex="-1"></ul>
       <div class="cat-footer">
-        <button class="cat-new-btn" type="button">${icon('plus')}<span>Nova categoria</span></button>
+        <button class="cat-new-btn" type="button">${icon('plus')}<span>${rotuloNova}</span></button>
         <div class="cat-new-form" hidden>
           <div class="cat-new-row">
             <input class="cat-new-input" type="text" maxlength="40" autocomplete="off"
@@ -66,18 +79,24 @@ export function criarSeletorCategoria({ select, iconeDe, corDe, podeRemover, aoC
 
   const opcoes = () => [...lista.querySelectorAll('[role="option"]')]
 
-  function preencherChip(elemento, nome) {
-    elemento.style.setProperty('--cat-cor', corDe(nome))
-    elemento.innerHTML = icon(iconeDe(nome))
+  function preencherChip(elemento, valor) {
+    const nomeIcone = iconeDe?.(valor)
+    elemento.hidden = !nomeIcone
+    if (!nomeIcone) return elemento.replaceChildren()
+    elemento.style.setProperty('--cat-cor', corDe?.(valor) ?? 'var(--cyan)')
+    elemento.innerHTML = icon(nomeIcone)
   }
 
   function sincronizarGatilho() {
     const valor = select.value
-    textoAtual.textContent = valor || 'Escolha uma categoria'
-    textoAtual.classList.toggle('is-placeholder', !valor)
-    if (valor) preencherChip(chipAtual, valor)
-    else chipAtual.replaceChildren()
-    chipAtual.hidden = !valor
+    const opcao = select.selectedOptions[0]
+    textoAtual.textContent = opcao && valor !== '' ? opcao.textContent : placeholder
+    textoAtual.classList.toggle('is-placeholder', !opcao || valor === '')
+    if (valor !== '' && opcao) preencherChip(chipAtual, valor)
+    else {
+      chipAtual.replaceChildren()
+      chipAtual.hidden = true
+    }
   }
 
   function desenharLista() {
@@ -85,6 +104,7 @@ export function criarSeletorCategoria({ select, iconeDe, corDe, podeRemover, aoC
     ;[...select.options].forEach((opcao, indice) => {
       const nome = opcao.value
       const selecionada = nome === select.value
+      const textoDaOpcao = opcao.textContent
 
       const item = document.createElement('li')
       item.className = 'cat-option'
@@ -100,7 +120,7 @@ export function criarSeletorCategoria({ select, iconeDe, corDe, podeRemover, aoC
 
       const rotulo = document.createElement('span')
       rotulo.className = 'cat-label'
-      rotulo.textContent = nome
+      rotulo.textContent = textoDaOpcao
 
       item.append(chip, rotulo)
 
@@ -218,7 +238,8 @@ export function criarSeletorCategoria({ select, iconeDe, corDe, podeRemover, aoC
   }
 
   async function removerCategoria(nome, botao) {
-    if (!confirm(`Remover a categoria "${nome}"? As movimentações já registradas continuam com esse nome.`)) return
+    const rotulo = [...select.options].find((o) => o.value === nome)?.textContent ?? nome
+    if (!confirm(`Remover "${rotulo}"? Os registros já feitos continuam como estão.`)) return
     botao.disabled = true
     try {
       await aoRemover(nome)
@@ -233,6 +254,9 @@ export function criarSeletorCategoria({ select, iconeDe, corDe, podeRemover, aoC
       alert(erro?.message || 'Não foi possível remover a categoria.')
     }
   }
+
+  // Lista simples: sem criação de opções, o rodapé inteiro some.
+  if (!aoCriar) raiz.querySelector('.cat-footer').hidden = true
 
   botaoNova.addEventListener('click', abrirNova)
   raiz.querySelector('.cat-new-cancel').addEventListener('click', () => {

@@ -47,6 +47,31 @@ Base: `/api` (mesma origem do site). Todas as respostas são JSON, com `Cache-Co
 | `GET/PUT/DELETE /meta` | `{ nome?, valor, prazo: 'AAAA-MM' }` |
 | `GET /categorias`, `POST /categorias`, `DELETE /categorias/:id` | Categorias próprias: `{ tipo: 'expense'\|'income'\|'saving', nome (1–40) }`. Criar repetido devolve a existente; máx. 60 por conta. Apagar não altera movimentações já registradas |
 
+## Cartões de crédito
+
+Regra financeira: a compra é **consumo** no mês de cada parcela (entra em `despesas` uma única vez); o fechamento só
+consolida a fatura; o **pagamento** da fatura é saída de caixa e **não** cria despesa nem altera o `saldo`.
+Nunca são guardados número do cartão, CVV ou credenciais.
+
+| Rota | Observações |
+|---|---|
+| `GET /cartoes`, `POST /cartoes`, `PATCH /cartoes/:id` | `{ nome, instituicao?, limite, diaFechamento 1-31, diaVencimento 1-31, ativo? }`. Desativar = `ativo: false` (não há exclusão: o histórico permanece). Máx. 20 cartões. Mudar os dias vale para faturas futuras |
+| `GET /cartoes/painel` | `{ hoje, cartoes: [{ ..., usado, disponivel, faturaAtual }], totais: { limiteTotal, usado, disponivel, aPagar, vencidas, pagoNoMes, proximoVencimento } }` |
+| `GET /cartoes/faturas?cartao=&status=&de=&ate=` | Faturas com `total`, `pago`, `pendente` e `status` (`aberta`, `fechada`, `parcialmente_paga`, `paga`, `vencida`), calculado pela data de hoje no fuso da conta. `de`/`ate` filtram pelo fechamento |
+| `GET /cartoes/faturas/:id` | `{ fatura, lancamentos, pagamentos }` |
+| `GET /cartoes/lancamentos?cartao=&status=&de=&ate=` | Parcelas com a fatura de cada uma. `de`/`ate` filtram pela competência (mês de consumo) |
+| `GET /cartoes/consumo?de=&ate=` | Parcelas no formato de movimentação do Financeiro (`type: 'expense'`, `origem: 'cartao'`) |
+| `POST /cartoes/compras` | `{ cartaoId, tipo: 'compra'\|'estorno'\|'ajuste', sentido?: 'cobranca'\|'credito' (ajuste), descricao, categoria, valor, parcelas 1-48, data, chave? }`. Gera todas as parcelas e as faturas que faltarem, numa única instrução. `chave` repetida devolve `200 { repetida: true }` |
+| `PATCH /cartoes/compras/:id` | Só texto (`descricao`, `categoria`): sempre. Valor/parcelas/data/cartão: refaz as parcelas, e dá `409` se alguma fatura envolvida tiver pagamento |
+| `DELETE /cartoes/compras/:id` | `409` se alguma fatura da compra tiver pagamento |
+| `POST /cartoes/pagamentos` | `{ faturaId, valor, data, chave? }`. `400` se passar do saldo pendente; `chave` repetida devolve `200 { repetido: true }` |
+| `DELETE /cartoes/pagamentos/:id` | Devolve o valor ao saldo pendente da fatura |
+
+Ciclos: a fatura de um mês cobre do dia seguinte ao fechamento anterior até o fechamento (inclusive); o vencimento é o
+primeiro `diaVencimento` depois do fechamento; em meses curtos, o dia 31 vale o último dia. As parcelas são divididas em
+centavos e a diferença de arredondamento fica na última. `GET /transacoes/resumo` ganhou `despesasCartao`,
+`pagamentosFatura`, `caixa` e `faturasPendentes` (sem cartões, `despesas` e `saldo` não mudam).
+
 ## Favoritos, Lazer, Preferências
 
 | Rota | Observações |

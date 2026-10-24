@@ -52,25 +52,50 @@ export function criarRepoTransacoes(db) {
     },
     // Saldo = entradas − despesas − guardado (mesma regra da tela Financeiro e do PDF).
     // Somas em numeric: exatas, sem erro de ponto flutuante.
+    //
+    // Cartão de crédito (sem contar nada duas vezes):
+    //  - o CONSUMO (parcelas com competência no mês) entra em `despesas`, uma vez, e reduz o saldo;
+    //  - o PAGAMENTO da fatura é só saída de caixa: aparece em `pagamentosFatura` e em `caixa`, mas não é
+    //    despesa nova nem altera `saldo` (a compra já o reduziu);
+    //  - `caixa` = entradas − despesas pagas fora do cartão − pagamentos de fatura − guardado;
+    //  - `faturasPendentes` = o que ainda falta pagar nas faturas (previsão de caixa).
     async resumo(userId, mes) {
       const [r] = await db.query(
-        `select
-           coalesce(sum(amount) filter (where type = 'income'  and to_char(date, 'YYYY-MM') = $2), 0)::text as entradas,
-           coalesce(sum(amount) filter (where type = 'expense' and to_char(date, 'YYYY-MM') = $2), 0)::text as despesas,
-           coalesce(sum(amount) filter (where type = 'saving'  and to_char(date, 'YYYY-MM') = $2), 0)::text as guardado,
-           (coalesce(sum(amount) filter (where type = 'income'  and to_char(date, 'YYYY-MM') = $2), 0)
-          - coalesce(sum(amount) filter (where type = 'expense' and to_char(date, 'YYYY-MM') = $2), 0)
-          - coalesce(sum(amount) filter (where type = 'saving'  and to_char(date, 'YYYY-MM') = $2), 0))::text as saldo,
-           coalesce(sum(amount) filter (where type = 'saving'), 0)::text as total_guardado
-         from transactions where user_id = $1`,
+        `with t as (
+           select
+             coalesce(sum(amount) filter (where type = 'income'  and to_char(date, 'YYYY-MM') = $2), 0) as entradas,
+             coalesce(sum(amount) filter (where type = 'expense' and to_char(date, 'YYYY-MM') = $2), 0) as despesas_avista,
+             coalesce(sum(amount) filter (where type = 'saving'  and to_char(date, 'YYYY-MM') = $2), 0) as guardado,
+             coalesce(sum(amount) filter (where type = 'saving'), 0) as total_guardado
+           from transactions where user_id = $1),
+         c as (
+           select coalesce(sum(amount) filter (where to_char(competence_date, 'YYYY-MM') = $2), 0) as consumo,
+                  coalesce(sum(amount), 0) as lancado
+           from card_installments where user_id = $1),
+         p as (
+           select coalesce(sum(amount) filter (where to_char(paid_on, 'YYYY-MM') = $2), 0) as pagos,
+                  coalesce(sum(amount), 0) as pago_total
+           from card_payments where user_id = $1)
+         select t.entradas::text, (t.despesas_avista + c.consumo)::text as despesas, c.consumo::text as despesas_cartao,
+                t.guardado::text,
+                (t.entradas - t.despesas_avista - c.consumo - t.guardado)::text as saldo,
+                (t.entradas - t.despesas_avista - p.pagos - t.guardado)::text as caixa,
+                p.pagos::text as pagamentos_fatura,
+                (c.lancado - p.pago_total)::text as faturas_pendentes,
+                t.total_guardado::text
+           from t, c, p`,
         [userId, mes]
       )
       return {
         mes,
         entradas: Number(r.entradas),
         despesas: Number(r.despesas),
+        despesasCartao: Number(r.despesas_cartao),
         guardado: Number(r.guardado),
         saldo: Number(r.saldo),
+        caixa: Number(r.caixa),
+        pagamentosFatura: Number(r.pagamentos_fatura),
+        faturasPendentes: Number(r.faturas_pendentes),
         totalGuardado: Number(r.total_guardado)
       }
     },

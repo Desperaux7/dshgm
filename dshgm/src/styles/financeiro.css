@@ -1145,3 +1145,487 @@
   position: relative;
   z-index: 5;
 }
+
+/* =========================================
+   Cartões de crédito
+   ========================================= */
+
+.cards-section {
+  margin-top: 16px;
+}
+
+.cards-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.cards-actions .btn .icon {
+  width: 15px;
+  height: 15px;
+  margin-right: 6px;
+}
+
+.cards-summary {
+  margin-top: 18px;
+}
+
+.summary-card.is-alert {
+  border-color: rgba(244, 144, 156, 0.4);
+}
+
+.summary-card.is-alert strong {
+  color: var(--coral);
+}
+
+/* ---------- Lista de cartões ---------- */
+
+.cards-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(290px, 1fr));
+  gap: 16px;
+  margin-bottom: 26px;
+}
+
+.cards-empty {
+  grid-column: 1 / -1;
+}
+
+.card-tile {
+  display: grid;
+  gap: 14px;
+  padding: 18px;
+  background: rgba(0, 0, 0, 0.2);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  transition: border-color 0.25s, transform 0.25s var(--ease);
+}
+
+.card-tile:hover {
+  border-color: var(--line-strong);
+}
+
+.card-tile.is-inactive {
+  opacity: 0.62;
+}
+
+.card-tile-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.card-tile-icon,
+.inv-icon {
+  display: grid;
+  width: 38px;
+  height: 38px;
+  flex-shrink: 0;
+  place-items: center;
+  color: var(--cyan);
+  background: rgba(var(--cyan-rgb), 0.1);
+  border-radius: 12px;
+}
+
+.card-tile-icon .icon,
+.inv-icon .icon {
+  width: 18px;
+  height: 18px;
+}
+
+.card-tile-names {
+  min-width: 0;
+  flex: 1;
+}
+
+.card-tile-names h3 {
+  margin: 0;
+  overflow: hidden;
+  font-size: 15px;
+  font-weight: 500;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.card-tile-names small,
+.card-tile-days {
+  color: var(--faint);
+  font-size: 11px;
+}
+
+.card-tile-days {
+  margin: -6px 0 0;
+}
+
+.card-tile-off {
+  padding: 3px 9px;
+  color: var(--muted);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.limit-bar {
+  height: 6px;
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.07);
+  border-radius: 999px;
+}
+
+.limit-bar i {
+  display: block;
+  height: 100%;
+  background: linear-gradient(90deg, var(--cyan), var(--mint));
+  border-radius: inherit;
+  transition: width 0.5s var(--ease);
+}
+
+.limit-bar.is-high i {
+  background: linear-gradient(90deg, #fbbf24, var(--coral));
+}
+
+.card-tile-limits {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.card-tile-limits span {
+  display: grid;
+  gap: 2px;
+}
+
+.card-tile-limits span:last-child {
+  text-align: right;
+}
+
+.card-tile-limits small,
+.card-tile-invoice small {
+  color: var(--faint);
+  font-size: 11px;
+}
+
+.card-tile-limits strong,
+.card-tile-invoice strong {
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.card-tile-limits strong.is-negative {
+  color: var(--coral);
+}
+
+.card-tile-invoice {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+}
+
+.card-tile-invoice span {
+  display: grid;
+  gap: 2px;
+}
+
+.card-tile-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.btn-small {
+  min-height: 32px;
+  padding: 0 12px;
+  font-size: 12px;
+}
+
+/* ---------- Status ---------- */
+
+.inv-status {
+  --estado: var(--muted);
+  display: inline-flex;
+  align-items: center;
+  height: 22px;
+  padding: 0 10px;
+  color: var(--estado);
+  background: color-mix(in srgb, var(--estado) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--estado) 32%, transparent);
+  border-radius: 999px;
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.inv-status.is-aberta { --estado: var(--cyan); }
+.inv-status.is-fechada { --estado: #fbbf24; }
+.inv-status.is-parcialmente_paga { --estado: #fdba74; }
+.inv-status.is-paga { --estado: var(--mint); }
+.inv-status.is-vencida { --estado: var(--coral); }
+
+/* ---------- Filtros ---------- */
+
+.cards-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.cards-filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+.cards-filter {
+  width: 190px;
+}
+
+.cards-month {
+  min-height: 44px;
+  padding: 0 12px;
+  color: var(--text);
+  background: rgba(0, 0, 0, 0.28);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  font-size: 13px;
+}
+
+.cards-month:focus {
+  border-color: rgba(var(--cyan-rgb), 0.5);
+  outline: 0;
+}
+
+/* Menus suspensos sem ícone: o texto começa sem a margem do chip. */
+.cat-trigger .cat-chip[hidden] + .cat-current {
+  margin-left: 6px;
+}
+
+/* ---------- Faturas e lançamentos ---------- */
+
+.cards-group-title {
+  margin: 20px 0 10px;
+  color: var(--faint);
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.cards-group-title:first-child {
+  margin-top: 0;
+}
+
+.inv-list {
+  display: grid;
+  gap: 8px;
+}
+
+.inv-row {
+  display: grid;
+  grid-template-columns: 38px minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 14px;
+  padding: 12px 14px;
+  background: rgba(0, 0, 0, 0.18);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  transition: border-color 0.2s;
+}
+
+.inv-row:hover {
+  border-color: var(--line-strong);
+}
+
+.inv-info h3 {
+  margin: 0;
+  overflow: hidden;
+  font-size: 14px;
+  font-weight: 500;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.inv-info p {
+  margin: 3px 0 0;
+  overflow: hidden;
+  color: var(--faint);
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.inv-values {
+  display: grid;
+  gap: 2px;
+  justify-items: end;
+  text-align: right;
+}
+
+.inv-values strong {
+  font-size: 15px;
+  font-weight: 500;
+}
+
+.inv-values strong.is-credit {
+  color: var(--mint);
+}
+
+.inv-values small {
+  color: var(--faint);
+  font-size: 11px;
+}
+
+.inv-right {
+  display: grid;
+  justify-items: end;
+  gap: 8px;
+}
+
+.inv-actions {
+  display: flex;
+  gap: 6px;
+}
+
+.inv-actions .icon-btn {
+  width: 30px;
+  height: 30px;
+}
+
+.inv-actions .icon-btn .icon {
+  width: 15px;
+  height: 15px;
+}
+
+.inv-actions .icon-btn.is-danger:hover {
+  color: var(--coral);
+}
+
+.card-origin-tag {
+  padding: 3px 9px;
+  color: var(--cyan);
+  background: rgba(var(--cyan-rgb), 0.1);
+  border-radius: 999px;
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+/* ---------- Pop-ups de cartão, compra, pagamento e fatura ---------- */
+
+.modal-wide {
+  width: min(600px, calc(100% - 32px));
+}
+
+.modal-hint {
+  margin: 0;
+  color: var(--faint);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.purchase-kinds button[aria-pressed='true'] {
+  color: var(--cyan);
+  background: rgba(var(--cyan-rgb), 0.1);
+  border-color: rgba(var(--cyan-rgb), 0.35);
+}
+
+.purchase-kinds button:disabled {
+  cursor: not-allowed;
+  opacity: 0.4;
+}
+
+.payment-summary,
+.invoice-stats {
+  display: grid;
+  gap: 8px;
+  padding: 14px 16px;
+  background: rgba(0, 0, 0, 0.22);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+}
+
+.payment-summary div {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 13px;
+}
+
+.payment-summary span,
+.invoice-stats small {
+  color: var(--muted);
+}
+
+.payment-summary strong.is-accent,
+.invoice-stats strong.is-accent {
+  color: var(--cyan);
+}
+
+.payment-full {
+  justify-self: start;
+}
+
+.invoice-stats {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.invoice-stats div {
+  display: grid;
+  gap: 4px;
+}
+
+.invoice-stats strong {
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.modal-hint .inv-status {
+  margin-right: 6px;
+}
+
+/* Linhas dentro do pop-up da fatura são mais compactas */
+.modal .inv-row {
+  grid-template-columns: 34px minmax(0, 1fr) auto auto;
+  gap: 12px;
+  padding: 10px 12px;
+}
+
+.modal .inv-icon {
+  width: 34px;
+  height: 34px;
+}
+
+@media (max-width: 760px) {
+  .cards-filter {
+    width: 100%;
+  }
+
+  .cards-filters {
+    width: 100%;
+  }
+
+  .cards-month {
+    flex: 1;
+  }
+
+  .inv-row {
+    grid-template-columns: 38px minmax(0, 1fr);
+  }
+
+  .inv-values,
+  .inv-right {
+    grid-column: 2;
+    justify-items: start;
+    text-align: left;
+  }
+
+  .invoice-stats {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
