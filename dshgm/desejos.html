@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Lista de desejos para comprar">
+  <meta name="theme-color" content="#040a0b">
+  <title>Lista de Desejos | DSHGM</title>
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Montserrat:wght@200;300;400;500;600;700&display=swap">
+  <script>
+    /* Aplica as preferências. */
+    try {
+      var p = JSON.parse(localStorage.getItem('dashboard-preferencias')) || {}
+      var r = document.documentElement
+      if (p.destaque) r.dataset.accent = p.destaque
+      if (p.fundo) r.dataset.aurora = { animado: 'animada', estatico: 'estatica', desligado: 'desligada' }[p.fundo] || 'animada'
+      if (p.densidade) r.dataset.densidade = p.densidade
+    } catch (e) {}
+  </script>
+</head>
+
+<body>
+  <div class="aurora aurora-soft" aria-hidden="true">
+    <span class="a1"></span><span class="a2"></span><span class="a3"></span>
+  </div>
+
+  <!-- Menu lateral, conta e painel de perfil são injetados por src/modules/shell.js -->
+  <div class="app" data-page="desejos">
+    <main class="page" id="wish-page">
+
+      <header class="page-header">
+        <a href="index.html" class="back-link">
+          <svg class="icon" aria-hidden="true"><use href="#i-arrow-left"></use></svg>
+          Voltar à dashboard
+        </a>
+        <p class="kicker">LISTA DE DESEJOS</p>
+        <h1>O que você quer comprar</h1>
+        <p class="page-lead">Cadastre os produtos desejados, defina a prioridade e acompanhe o valor estimado de cada um.</p>
+      </header>
+
+      <section class="wish-summary" aria-label="Resumo da lista">
+        <article class="wish-stat is-main">
+          <span>Valor desejado</span>
+          <strong id="wish-sum-desired">R$ 0,00</strong>
+          <small id="wish-sum-desired-note">Itens ainda não comprados</small>
+        </article>
+        <article class="wish-stat">
+          <span>Valor comprado</span>
+          <strong id="wish-sum-bought">R$ 0,00</strong>
+          <small id="wish-sum-bought-note">Itens já adquiridos</small>
+        </article>
+        <article class="wish-stat">
+          <span>Valor total da lista</span>
+          <strong id="wish-sum-total">R$ 0,00</strong>
+          <small>Desejados + comprados</small>
+        </article>
+        <article class="wish-stat">
+          <span>Itens cadastrados</span>
+          <strong id="wish-sum-count">0</strong>
+          <small>Produtos na lista</small>
+        </article>
+      </section>
+
+      <div class="page-toolbar wish-toolbar">
+        <div class="wish-filters">
+          <div class="filters" id="wish-filter-priority" role="group" aria-label="Filtrar por prioridade"></div>
+          <div class="filters" id="wish-filter-status" role="group" aria-label="Filtrar por status"></div>
+        </div>
+        <span class="spacer"></span>
+        <button class="btn btn-primary" id="wish-add" type="button">
+          <svg class="icon" aria-hidden="true"><use href="#i-plus"></use></svg>
+          Adicionar produto
+        </button>
+      </div>
+
+      <section class="page-panel" aria-label="Produtos desejados">
+        <div id="wish-list" aria-live="polite"></div>
+      </section>
+
+    </main>
+  </div>
+
+  <!-- Cadastro e edição de produto -->
+  <dialog class="modal modal-wide" id="wish-dialog" aria-labelledby="wish-dialog-title">
+    <form class="modal-form" id="wish-form" novalidate>
+      <div class="modal-head">
+        <div>
+          <p class="kicker" id="wish-dialog-kicker">NOVO PRODUTO</p>
+          <h2 id="wish-dialog-title">Adicionar à lista</h2>
+        </div>
+        <button class="icon-btn" id="wish-cancel-x" type="button" aria-label="Fechar">
+          <svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg>
+        </button>
+      </div>
+
+      <div class="wish-form-grid">
+        <div class="wish-image-field">
+          <div class="wish-image-box" id="wish-image-box">
+            <span class="wish-image-empty" id="wish-image-empty">
+              <svg class="icon" aria-hidden="true"><use href="#i-image"></use></svg>
+              <small>Pré-visualização</small>
+            </span>
+            <img id="wish-image-preview" alt="Pré-visualização da imagem do produto" referrerpolicy="no-referrer" hidden>
+          </div>
+          <p class="wish-image-note" id="wish-image-note" aria-live="polite"></p>
+        </div>
+
+        <div class="wish-fields">
+          <label class="field">
+            Nome do produto
+            <input id="wish-name" type="text" maxlength="120" autocomplete="off" placeholder="Ex.: Fone de ouvido sem fio" required>
+            <small class="field-error" id="wish-name-error"></small>
+          </label>
+
+          <label class="field">
+            Preço médio estimado (R$)
+            <input id="wish-price" type="text" inputmode="decimal" autocomplete="off" placeholder="0,00" required>
+            <small class="field-error" id="wish-price-error"></small>
+          </label>
+        </div>
+      </div>
+
+      <label class="field">
+        Descrição (opcional)
+        <textarea id="wish-description" rows="3" maxlength="500" placeholder="Modelo, cor, por que você quer..."></textarea>
+        <small class="field-error" id="wish-description-error"></small>
+      </label>
+
+      <label class="field">
+        Link do produto (opcional)
+        <input id="wish-link" type="url" inputmode="url" maxlength="2000" autocomplete="off" placeholder="https://loja.com/produto">
+        <small class="field-error" id="wish-link-error"></small>
+      </label>
+
+      <label class="field">
+        Imagem por URL (opcional)
+        <input id="wish-image-url" type="url" inputmode="url" maxlength="2000" autocomplete="off" placeholder="https://site.com/imagem.jpg">
+        <small class="field-error" id="wish-image-url-error"></small>
+      </label>
+
+      <div class="field-row">
+        <div class="field">
+          Prioridade
+          <div class="wish-seg" id="wish-priority" role="group" aria-label="Prioridade"></div>
+        </div>
+        <div class="field">
+          Status
+          <div class="wish-seg" id="wish-status" role="group" aria-label="Status"></div>
+        </div>
+      </div>
+
+      <p class="modal-error" id="wish-error" role="alert"></p>
+
+      <div class="modal-actions">
+        <span class="spacer"></span>
+        <button class="btn" id="wish-cancel" type="button">Cancelar</button>
+        <button class="btn btn-primary" id="wish-submit" type="submit">Salvar</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- Confirmação de exclusão -->
+  <dialog class="modal" id="wish-confirm" aria-labelledby="wish-confirm-title">
+    <form class="modal-form" method="dialog" id="wish-confirm-form">
+      <div class="modal-head">
+        <div>
+          <p class="kicker">EXCLUIR PRODUTO</p>
+          <h2 id="wish-confirm-title">Excluir da lista?</h2>
+        </div>
+      </div>
+      <p class="modal-hint" id="wish-confirm-text"></p>
+      <div class="modal-actions">
+        <span class="spacer"></span>
+        <button class="btn" id="wish-confirm-cancel" type="button">Cancelar</button>
+        <button class="btn btn-danger" id="wish-confirm-ok" type="submit" value="excluir">Excluir definitivamente</button>
+      </div>
+    </form>
+  </dialog>
+
+  <script type="module" src="/src/entradas/desejos.js"></script>
+</body>
+</html>

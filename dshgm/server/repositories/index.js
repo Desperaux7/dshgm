@@ -4,6 +4,7 @@ import { criarRepoPreferencias } from './preferences.js'
 import { criarRepoTarefas } from './tasks.js'
 import { criarRepoTransacoes } from './transactions.js'
 import { criarRepoCartoes } from './cards.js'
+import { criarRepoDesejos } from './wishlist.js'
 import { criarRepoFavoritos } from './favorites.js'
 import { criarRepoLazer } from './leisure.js'
 import { criarRepoEventos } from './events.js'
@@ -17,6 +18,7 @@ export function criarRepositorios(db) {
     tarefas: criarRepoTarefas(db),
     transacoes: criarRepoTransacoes(db),
     cartoes: criarRepoCartoes(db),
+    desejos: criarRepoDesejos(db),
     favoritos: criarRepoFavoritos(db),
     lazer: criarRepoLazer(db),
     eventos: criarRepoEventos(db),

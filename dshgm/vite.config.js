@@ -15,7 +15,8 @@ export default defineConfig({
         financeiro: resolve(root, 'financeiro.html'),
         favoritos: resolve(root, 'favoritos.html'),
         agenda: resolve(root, 'agenda.html'),
-        lazer: resolve(root, 'lazer.html')
+        lazer: resolve(root, 'lazer.html'),
+        desejos: resolve(root, 'desejos.html')
       }
     }
   }

@@ -74,14 +74,13 @@ export function esquecerCapa(id) {
 export const capaHorizontal = (capa) => Boolean(capa) && capa.largura / capa.altura > 1.2
 
 /*
-  Dois modelos de cartão, cada um com a capa no formato do seu tipo:
-    jogo         -> cápsula horizontal (padrão Steam, 920×430)
-    filme/série  -> pôster vertical (2:3, ex.: 600×900)
+  Dois modelos de cartão (o selo de concluído muda: jogo = "Zerado", filme/série = "Assistido").
+  A capa de todos os tipos segue o padrão vertical 2:3 (jogos: Steam Grid 600×900; filmes/séries: pôster).
 */
 export const modeloDe = (tipo) => (tipo === 'jogo' ? 'jogo' : 'midia')
 
-// A capa preenche o quadro quando tem o mesmo formato dele; senão aparece inteira sobre um fundo desfocado.
-export function capaPrecisaConter(capa, modelo) {
-  if (!capa) return false
-  return modelo === 'jogo' ? !capaHorizontal(capa) : capaHorizontal(capa)
+// O quadro é vertical (2:3): capa vertical preenche; capa horizontal aparece inteira sobre um fundo desfocado.
+// (`modelo` fica na assinatura para o caso de um tipo voltar a ter formato próprio.)
+export function capaPrecisaConter(capa) {
+  return capaHorizontal(capa)
 }

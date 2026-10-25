@@ -380,9 +380,9 @@ function marcar(grupo, valor) {
   grupo.querySelectorAll('button').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.valor === valor)))
 }
 
-// O formulário segue o modelo do tipo: jogo = cápsula horizontal (Steam); filme/série = pôster vertical.
+// A dica de capa segue o tipo; o formato é vertical (2:3) para todos.
 const DICAS_CAPA = {
-  jogo: 'Modelo de jogo: capa horizontal no padrão Steam Grid (920×430) ou vertical (600×900).',
+  jogo: 'Modelo de jogo: capa vertical no padrão Steam Grid (600×900).',
   midia: 'Modelo de filme/série: pôster vertical (600×900, proporção 2:3).'
 }
 
@@ -391,7 +391,6 @@ function definirTipo(tipo) {
   marcar(grupoTipo, tipo)
   rotuloPlataforma.textContent = tipo === 'jogo' ? 'Plataforma' : 'Onde assistir'
   campoPlataforma.placeholder = tipoDe(tipo).dica
-  zonaCapa.classList.toggle('is-game', modeloDe(tipo) === 'jogo')
   dicaCapa.textContent = DICAS_CAPA[modeloDe(tipo)]
   ajustarEncaixePrevia()
 }
@@ -617,7 +616,6 @@ function mostrarSorteado(item, final) {
   const tipo = tipoDe(item.tipo)
   sorteioNome.textContent = item.titulo
   sorteioMeta.textContent = [tipo.nome, item.plataforma].filter(Boolean).join(' · ')
-  sorteioCapa.classList.toggle('is-game', modeloDe(item.tipo) === 'jogo')
   montarCapa(item, sorteioCapa)
   sorteioResultado.classList.toggle('is-final', final)
 }

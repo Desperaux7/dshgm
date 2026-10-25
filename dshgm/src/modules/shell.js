@@ -11,6 +11,7 @@ const LINKS = [
   { id: 'agenda', href: 'agenda.html', icone: 'calendar', texto: 'Agenda' },
   { id: 'favoritos', href: 'favoritos.html', icone: 'bookmark', texto: 'Favoritos' },
   { id: 'lazer', href: 'lazer.html', icone: 'gamepad', texto: 'Lazer' },
+  { id: 'desejos', href: 'desejos.html', icone: 'gift', texto: 'Lista de Desejos' },
   { id: 'financeiro', href: 'financeiro.html', icone: 'dollar', texto: 'Financeiro' },
   { id: 'graficos', href: 'financeiro.html#graficos', icone: 'chart', texto: 'Gráficos' },
   { id: 'spotify', href: 'index.html#spotify', icone: 'spotify', texto: 'Spotify' }

@@ -24,7 +24,7 @@ describe('status da tarefa na tela', () => {
 })
 
 describe('lazer: modelos e capas', () => {
-  it('jogo usa a cápsula horizontal; filme e série usam o pôster vertical', () => {
+  it('jogo, filme e série têm modelos de cartão próprios', () => {
     expect(modeloDe('jogo')).toBe('jogo')
     expect(modeloDe('filme')).toBe('midia')
     expect(modeloDe('serie')).toBe('midia')
@@ -33,11 +33,12 @@ describe('lazer: modelos e capas', () => {
   it('capa de formato diferente do quadro aparece inteira, a do mesmo formato preenche', () => {
     const horizontal = { largura: 920, altura: 430 }
     const vertical = { largura: 600, altura: 900 }
-    expect(capaPrecisaConter(horizontal, 'jogo')).toBe(false)
-    expect(capaPrecisaConter(vertical, 'jogo')).toBe(true)
-    expect(capaPrecisaConter(vertical, 'midia')).toBe(false)
-    expect(capaPrecisaConter(horizontal, 'midia')).toBe(true)
-    expect(capaPrecisaConter(null, 'jogo')).toBe(false)
+    // Todos os tipos usam o quadro vertical 2:3 (Steam Grid 600×900 para jogos).
+    for (const modelo of ['jogo', 'midia']) {
+      expect(capaPrecisaConter(vertical, modelo)).toBe(false)
+      expect(capaPrecisaConter(horizontal, modelo)).toBe(true)
+      expect(capaPrecisaConter(null, modelo)).toBe(false)
+    }
   })
 
   it('o progresso em porcentagem não é mais usado', () => {

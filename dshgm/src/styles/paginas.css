@@ -599,12 +599,6 @@
   gap: 18px 14px;
 }
 
-/* Modelo de jogo: cápsula horizontal (padrão Steam, 920×430). */
-.lib-grid.is-jogo {
-  grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
-  gap: 20px 16px;
-}
-
 .lib-grid + .lib-subtitle,
 .lib-subtitle {
   margin: 4px 0 12px;
@@ -680,15 +674,6 @@
   aspect-ratio: 2 / 3; /* modelo filme/série: pôster vertical */
   padding: 0;
   transition: border-color 0.2s, transform 0.25s var(--ease), box-shadow 0.25s;
-}
-
-.model-jogo .lib-cover {
-  aspect-ratio: 460 / 215; /* modelo jogo: cápsula horizontal */
-}
-
-.model-jogo .cover-placeholder .icon {
-  width: 44px;
-  height: 44px;
 }
 
 .lib-card:hover .lib-cover,
@@ -866,10 +851,6 @@
   width: 150px; /* pôster (filme/série) */
 }
 
-.cover-field:has(.cover-drop.is-game) {
-  width: 220px; /* cápsula (jogo) */
-}
-
 .cover-drop {
   position: relative;
   display: grid;
@@ -928,12 +909,6 @@
   object-fit: contain;
 }
 
-/* Formulário no modelo de jogo: quadro horizontal */
-.cover-drop.is-game {
-  width: 100%;
-  aspect-ratio: 460 / 215;
-}
-
 #lib-type button {
   display: inline-flex;
   align-items: center;
@@ -964,12 +939,6 @@
   width: 150px;
   aspect-ratio: 2 / 3;
   margin-bottom: 8px;
-}
-
-.draw-cover.is-game {
-  width: 280px;
-  max-width: 100%;
-  aspect-ratio: 460 / 215;
 }
 
 .draw-result strong {

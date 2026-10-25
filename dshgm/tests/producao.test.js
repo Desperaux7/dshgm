@@ -68,8 +68,8 @@ describe('front-end preservado', () => {
     expect(html).toMatch(/target="_blank"/)
   })
 
-  it('as cinco páginas continuam na configuração de build', async () => {
+  it('todas as páginas continuam na configuração de build', async () => {
     const v = await ler('vite.config.js')
-    for (const p of ['index.html', 'financeiro.html', 'favoritos.html', 'agenda.html', 'lazer.html']) expect(v).toContain(p)
+    for (const p of ['index.html', 'financeiro.html', 'favoritos.html', 'agenda.html', 'lazer.html', 'desejos.html']) expect(v).toContain(p)
   })
 })

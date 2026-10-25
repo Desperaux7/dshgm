@@ -12,6 +12,7 @@ import { criarRotasPerfil } from './routes/perfil.js'
 import { criarRotasTarefas } from './routes/tarefas.js'
 import { criarRotasCategorias, criarRotasMeta, criarRotasTransacoes } from './routes/transacoes.js'
 import { criarRotasCartoes } from './routes/cartoes.js'
+import { criarRotasDesejos } from './routes/desejos.js'
 import { criarRotasFavoritos } from './routes/favoritos.js'
 import { criarRotasLazer } from './routes/lazer.js'
 import { criarRotasEventos } from './routes/eventos.js'
@@ -46,6 +47,7 @@ export function criarApp({ config, db, fetchImpl, limitar = true, atrasosRede, r
   privado.use('/meta', criarRotasMeta({ repos }))
   privado.use('/categorias', criarRotasCategorias({ repos }))
   privado.use('/cartoes', criarRotasCartoes({ repos, relogio }))
+  privado.use('/desejos', criarRotasDesejos({ repos }))
   privado.use('/favoritos', criarRotasFavoritos({ repos }))
   privado.use('/lazer', criarRotasLazer({ repos }))
   privado.use('/eventos', criarRotasEventos({ repos, calendario }))

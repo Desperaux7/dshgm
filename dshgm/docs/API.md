@@ -72,6 +72,19 @@ primeiro `diaVencimento` depois do fechamento; em meses curtos, o dia 31 vale o 
 centavos e a diferença de arredondamento fica na última. `GET /transacoes/resumo` ganhou `despesasCartao`,
 `pagamentosFatura`, `caixa` e `faturasPendentes` (sem cartões, `despesas` e `saldo` não mudam).
 
+## Lista de desejos
+
+| Rota | Observações |
+|---|---|
+| `GET /desejos` | `{ itens, totais }`. Ordem: prioridade (alta, média, baixa), desejados antes dos comprados, mais novos primeiro |
+| `POST /desejos` | `{ nome (1-120), descricao? (até 500), linkUrl?, imagemUrl?, preco >= 0, prioridade?: 'alta'\|'media'\|'baixa', status?: 'desejado'\|'comprado' }`. Links e imagens só `http`/`https`, sem usuário/senha no endereço. Máx. 500 produtos. Resposta `{ item, totais }` |
+| `PATCH /desejos/:id` | Qualquer subconjunto dos campos acima (`linkUrl: null` apaga o link). Mudar `status` grava/limpa `compradoEm`. Resposta `{ item, totais }` |
+| `DELETE /desejos/:id` | Resposta `{ totais }` |
+
+`totais` = `{ quantidade, desejados, comprados, valorDesejado, valorComprado, valorTotal }`, sempre somados no banco
+(`numeric`) a partir dos registros gravados. Imagens: só URL (não há armazenamento de arquivos configurado); o upload
+futuro grava a URL do arquivo na mesma coluna `image_url`.
+
 ## Favoritos, Lazer, Preferências
 
 | Rota | Observações |
