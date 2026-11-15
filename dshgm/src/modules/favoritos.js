@@ -203,25 +203,42 @@ export function criarIconeSite(favorito) {
 
 /* ---------- Pastas e barras ---------- */
 
-function avisar(texto) {
+function avisar(texto, duracao = 3600) {
+  if (typeof document === 'undefined') return
   const toast = document.querySelector('#toast')
   if (!toast) return
   toast.textContent = texto
   toast.classList.add('is-visible')
   clearTimeout(avisar.timer)
-  avisar.timer = setTimeout(() => toast.classList.remove('is-visible'), 3600)
+  avisar.timer = setTimeout(() => toast.classList.remove('is-visible'), duracao)
 }
 
-// Abre todos os links numa nova guia cada. Navegadores podem bloquear várias guias de uma vez: avisa como liberar.
+// Abre todos os links, um por guia. O navegador só deixa abrir mais de uma guia por clique se o site tiver
+// permissão para pop-ups: sem ela, só a primeira abre e o restante é bloqueado. Por isso o retorno diz quantas
+// foram bloqueadas, e o aviso explica como liberar.
 export function abrirTodos(links) {
+  let bloqueados = 0
   links.forEach((link) => {
-    const a = document.createElement('a')
-    a.href = link.url
-    a.target = '_blank'
-    a.rel = 'noopener noreferrer'
-    a.click()
+    const aba = window.open(link.url, '_blank')
+    if (aba) {
+      try {
+        aba.opener = null // a nova guia não controla esta
+      } catch {
+        /* sem acesso: segue */
+      }
+    } else {
+      bloqueados++
+    }
   })
-  if (links.length > 1) avisar(`Abrindo ${links.length} links. Se só uma guia abrir, permita pop-ups para este site.`)
+  if (bloqueados) {
+    avisar(
+      `O navegador bloqueou ${bloqueados} ${bloqueados === 1 ? 'guia' : 'guias'}. Clique no ícone de pop-up bloqueado na barra de endereço, permita pop-ups para este site e use "Abrir todos" de novo.`,
+      9000
+    )
+  } else if (links.length > 1) {
+    avisar(`${links.length} links abertos`)
+  }
+  return bloqueados
 }
 
 // Ícone de pasta: grade com até 4 ícones pequenos (como as pastas de aplicativos do Android).
