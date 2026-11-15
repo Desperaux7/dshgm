@@ -1466,9 +1466,12 @@ select:focus-visible {
   background: rgba(255, 255, 255, 0.08);
   border: 1px solid var(--line-strong);
   border-radius: 14px;
+  overflow: hidden;
 }
 
-.folder-icon .site-icon {
+.folder-icon .site-icon,
+.shortcut .folder-icon .site-icon,
+.fav-card .folder-icon .site-icon {
   width: auto;
   height: auto;
   min-width: 0;
@@ -1479,7 +1482,9 @@ select:focus-visible {
   font-size: 8px;
 }
 
-.folder-icon .site-icon img {
+.folder-icon .site-icon img,
+.shortcut .folder-icon .site-icon img,
+.fav-card .folder-icon .site-icon img {
   width: 100%;
   height: 100%;
   border-radius: 3px;
