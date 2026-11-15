@@ -3,16 +3,35 @@ import { escaparHTML } from '../services/storage.js'
 import { favoritosApi } from '../services/favoritosApi.js'
 
 export const CATEGORIAS_PADRAO = ['Estudos', 'Desenvolvimento', 'Dia a dia', 'Games']
-const LIMITE_ATALHOS = 8
+// Quantos itens (links soltos + pastas) cabem em cada barra.
+export const LIMITE_BARRA = { central: 8, superior: 5 }
+export const EVENTO_FAVORITOS = 'favoritos-alterados'
 
 /*
   Modelo de favorito:
-  { id, nome, url, categoria, fixado, criado }
-  fixado: aparece nos atalhos da página inicial.
+  { id, nome, url, categoria, fixado, pastaId, barra, criado }
+    fixado: link solto aparece na barra escolhida. Link dentro de pasta aparece com a pasta (e herda a barra dela).
+    barra: 'central' (abaixo da pesquisa) | 'superior' (canto superior direito).
+  Modelo de pasta: { id, nome, barra, criado }
 */
 
 // Favoritos da conta (o servidor devolve o modelo já normalizado).
 export const carregarFavoritos = () => favoritosApi.listar()
+export const carregarTudo = () => favoritosApi.listarTudo()
+
+// O que uma barra mostra, na ordem de criação: pastas da barra + links soltos fixados nela.
+export function itensDaBarra(favoritos, pastas, barra) {
+  const itens = [
+    ...pastas.filter((p) => p.barra === barra).map((pasta) => ({
+      tipo: 'pasta',
+      pasta,
+      links: favoritos.filter((f) => f.pastaId === pasta.id).sort((a, b) => a.criado - b.criado),
+      criado: pasta.criado
+    })),
+    ...favoritos.filter((f) => !f.pastaId && f.fixado && f.barra === barra).map((link) => ({ tipo: 'link', link, criado: link.criado }))
+  ]
+  return itens.sort((a, b) => a.criado - b.criado)
+}
 
 // Aceita "exemplo.com" e completa com https://. Só permite http e https.
 export function normalizarURL(texto) {
@@ -182,61 +201,223 @@ export function criarIconeSite(favorito) {
   return caixa
 }
 
-/* ---------- Atalhos na página inicial ---------- */
+/* ---------- Pastas e barras ---------- */
 
-export function iniciarAtalhos() {
-  const raiz = document.querySelector('#shortcuts')
-  if (!raiz) return
+function avisar(texto) {
+  const toast = document.querySelector('#toast')
+  if (!toast) return
+  toast.textContent = texto
+  toast.classList.add('is-visible')
+  clearTimeout(avisar.timer)
+  avisar.timer = setTimeout(() => toast.classList.remove('is-visible'), 3600)
+}
+
+// Abre todos os links numa nova guia cada. Navegadores podem bloquear várias guias de uma vez: avisa como liberar.
+export function abrirTodos(links) {
+  links.forEach((link) => {
+    const a = document.createElement('a')
+    a.href = link.url
+    a.target = '_blank'
+    a.rel = 'noopener noreferrer'
+    a.click()
+  })
+  if (links.length > 1) avisar(`Abrindo ${links.length} links. Se só uma guia abrir, permita pop-ups para este site.`)
+}
+
+// Ícone de pasta: grade com até 4 ícones pequenos (como as pastas de aplicativos do Android).
+export function criarIconePasta(links) {
+  const caixa = document.createElement('span')
+  caixa.className = 'folder-icon'
+  caixa.setAttribute('aria-hidden', 'true')
+  const mostrados = links.slice(0, 4)
+  mostrados.forEach((link) => caixa.append(criarIconeSite(link)))
+  if (!mostrados.length) caixa.classList.add('is-empty')
+  return caixa
+}
+
+let caixaAberta = null
+
+export function fecharCaixaPasta() {
+  if (!caixaAberta) return
+  caixaAberta.caixa.remove()
+  caixaAberta.gatilho.setAttribute('aria-expanded', 'false')
+  caixaAberta = null
+}
+
+// Pequena caixa com os links da pasta e o botão "Abrir todos".
+export function abrirCaixaPasta(pasta, links, gatilho) {
+  const reabrir = caixaAberta?.gatilho === gatilho
+  fecharCaixaPasta()
+  if (reabrir) return
+
+  const caixa = document.createElement('div')
+  caixa.className = 'folder-pop'
+  caixa.setAttribute('role', 'dialog')
+  caixa.setAttribute('aria-label', `Pasta ${pasta.nome}`)
+
+  const topo = document.createElement('div')
+  topo.className = 'folder-pop-head'
+  const titulo = document.createElement('strong')
+  titulo.textContent = pasta.nome
+  const todos = document.createElement('button')
+  todos.type = 'button'
+  todos.className = 'btn btn-sm'
+  todos.innerHTML = icon('external')
+  todos.append('Abrir todos')
+  todos.disabled = links.length === 0
+  todos.addEventListener('click', () => abrirTodos(links))
+  topo.append(titulo, todos)
+
+  const lista = document.createElement('div')
+  lista.className = 'folder-pop-list'
+  if (!links.length) {
+    const vazio = document.createElement('p')
+    vazio.className = 'folder-pop-empty'
+    vazio.textContent = 'Pasta vazia. Adicione links pela central de favoritos.'
+    lista.append(vazio)
+  }
+  links.forEach((link) => {
+    const a = document.createElement('a')
+    a.className = 'folder-pop-item'
+    a.href = link.url
+    a.target = '_blank'
+    a.rel = 'noopener noreferrer'
+    a.title = `${link.nome} · ${hostDe(link.url)}`
+    const nome = document.createElement('span')
+    nome.textContent = link.nome
+    a.append(criarIconeSite(link), nome)
+    lista.append(a)
+  })
+
+  caixa.append(topo, lista)
+  document.body.append(caixa)
+  gatilho.setAttribute('aria-expanded', 'true')
+  caixaAberta = { caixa, gatilho }
+
+  // Posição: abaixo do gatilho, sem sair da tela.
+  const r = gatilho.getBoundingClientRect()
+  const largura = caixa.offsetWidth
+  const esquerda = Math.min(Math.max(8, r.left + r.width / 2 - largura / 2), window.innerWidth - largura - 8)
+  caixa.style.left = `${esquerda}px`
+  caixa.style.top = `${Math.min(r.bottom + 8, window.innerHeight - caixa.offsetHeight - 8)}px`
+}
+
+// (protegido: este módulo também é importado em testes, fora do navegador)
+if (typeof document !== 'undefined') {
+  document.addEventListener('click', (e) => {
+    if (caixaAberta && !caixaAberta.caixa.contains(e.target) && !caixaAberta.gatilho.contains(e.target)) fecharCaixaPasta()
+  })
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') fecharCaixaPasta()
+  })
+  window.addEventListener('resize', fecharCaixaPasta)
+}
+
+function criarAtalhoLink(link, classe) {
+  const a = document.createElement('a')
+  a.className = classe
+  a.href = link.url
+  a.target = '_blank'
+  a.rel = 'noopener noreferrer'
+  a.title = `${link.nome} · ${hostDe(link.url)}`
+  const nome = document.createElement('span')
+  nome.textContent = link.nome
+  a.append(criarIconeSite(link), nome)
+  return a
+}
+
+function criarAtalhoPasta(item, classe) {
+  const botao = document.createElement('button')
+  botao.type = 'button'
+  botao.className = `${classe} is-folder`
+  botao.title = `${item.pasta.nome} · ${item.links.length} ${item.links.length === 1 ? 'link' : 'links'}`
+  botao.setAttribute('aria-haspopup', 'dialog')
+  botao.setAttribute('aria-expanded', 'false')
+  const nome = document.createElement('span')
+  nome.textContent = item.pasta.nome
+  botao.append(criarIconePasta(item.links), nome)
+  botao.addEventListener('click', () => abrirCaixaPasta(item.pasta, item.links, botao))
+  return botao
+}
+
+/* ---------- Barras de atalhos ---------- */
+
+// Barra central (página inicial, abaixo da pesquisa) e barra superior (canto superior direito, em todas as páginas).
+// Só existem no modo pessoal. Um único carregamento alimenta as duas.
+export function iniciarBarrasFavoritos() {
+  const central = document.querySelector('#shortcuts')
+  const superior = document.querySelector('#top-shortcuts')
+  const grupoSuperior = document.querySelector('#top-favs')
+  if (!central && !superior) return
 
   let favoritos = []
+  let pastas = []
+  let carregado = false
+  let carregando = false
+
+  const noModoPessoal = () => document.documentElement.dataset.modo !== 'profissional'
 
   function renderizar() {
-    const lista = favoritos
-      .filter((f) => f.fixado)
-      .sort((a, b) => a.criado - b.criado)
-    const visiveis = lista.slice(0, LIMITE_ATALHOS)
+    fecharCaixaPasta()
 
-    raiz.replaceChildren()
+    if (central) {
+      const itens = itensDaBarra(favoritos, pastas, 'central').slice(0, LIMITE_BARRA.central)
+      central.replaceChildren(
+        ...itens.map((item) => (item.tipo === 'pasta' ? criarAtalhoPasta(item, 'shortcut') : criarAtalhoLink(item.link, 'shortcut')))
+      )
+      if (!itens.length) {
+        // Sem nada na barra: convida a adicionar (o botão "Todos" fica no canto superior).
+        const mais = document.createElement('a')
+        mais.className = 'shortcut shortcut-more'
+        mais.href = 'favoritos.html'
+        mais.innerHTML = `<span class="site-icon">${icon('plus')}</span>`
+        const texto = document.createElement('span')
+        texto.textContent = 'Adicionar'
+        mais.append(texto)
+        central.append(mais)
+      }
+    }
 
-    visiveis.forEach((favorito) => {
-      const link = document.createElement('a')
-      link.className = 'shortcut'
-      link.href = favorito.url
-      link.target = '_blank'
-      link.rel = 'noopener noreferrer'
-      link.title = `${favorito.nome} · ${hostDe(favorito.url)}`
-
-      const nome = document.createElement('span')
-      nome.textContent = favorito.nome
-
-      link.append(criarIconeSite(favorito), nome)
-      raiz.append(link)
-    })
-
-    const mais = document.createElement('a')
-    mais.className = 'shortcut shortcut-more'
-    mais.href = 'favoritos.html'
-    mais.innerHTML = `<span class="site-icon">${icon(visiveis.length ? 'bookmark' : 'plus')}</span>`
-    const textoMais = document.createElement('span')
-    textoMais.textContent = visiveis.length ? 'Todos' : 'Adicionar'
-    mais.append(textoMais)
-    raiz.append(mais)
+    if (superior) {
+      const itens = itensDaBarra(favoritos, pastas, 'superior').slice(0, LIMITE_BARRA.superior)
+      superior.replaceChildren(
+        ...itens.map((item) => (item.tipo === 'pasta' ? criarAtalhoPasta(item, 'top-shortcut') : criarAtalhoLink(item.link, 'top-shortcut')))
+      )
+    }
+    if (grupoSuperior) grupoSuperior.hidden = !noModoPessoal()
   }
 
   async function carregar() {
+    if (carregando || !noModoPessoal()) return
+    carregando = true
     try {
-      favoritos = await carregarFavoritos()
+      ;({ favoritos, pastas } = await carregarTudo())
+      carregado = true
     } catch {
-      /* sem resposta: mostra só o atalho "Adicionar" */
+      /* sem resposta: mostra o que já havia (ou só o convite para adicionar) */
+    } finally {
+      carregando = false
     }
     renderizar()
   }
 
+  renderizar()
   carregar()
+
   // Ao voltar para a aba, traz alterações feitas em outro dispositivo ou aba.
   document.addEventListener('visibilitychange', () => {
-    if (!document.hidden) carregar()
+    if (!document.hidden && carregado) carregar()
+  })
+  // Alterações feitas na central de favoritos (mesma aba).
+  window.addEventListener(EVENTO_FAVORITOS, carregar)
+  // Trocar de modo: no profissional as barras somem; ao voltar ao pessoal, carrega se ainda não tinha.
+  window.addEventListener('preferencias-alteradas', () => {
+    if (grupoSuperior) grupoSuperior.hidden = !noModoPessoal()
+    if (!carregado) carregar()
   })
 }
+
+// Compatibilidade: a página inicial chamava iniciarAtalhos(). As barras agora são iniciadas pelo shell.
+export function iniciarAtalhos() {}
 
 export { escaparHTML }

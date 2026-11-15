@@ -18,6 +18,7 @@
       if (p.destaque) r.dataset.accent = p.destaque
       if (p.fundo) r.dataset.aurora = { animado: 'animada', estatico: 'estatica', desligado: 'desligada' }[p.fundo] || 'animada'
       if (p.densidade) r.dataset.densidade = p.densidade
+        if (p.modo) r.dataset.modo = p.modo
     } catch (e) {}
   </script>
 </head>
@@ -212,6 +213,7 @@
           <div id="transaction-list" class="transaction-list">
             <p class="empty-state">Nenhuma movimentação cadastrada.</p>
           </div>
+          <nav class="pagination" id="transaction-pagination" aria-label="Páginas do histórico" hidden></nav>
         </section>
       </div>
 

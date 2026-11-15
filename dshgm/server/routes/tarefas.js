@@ -3,21 +3,49 @@ import { z } from 'zod'
 import { assincrono, naoEncontrado, requisicaoInvalida } from '../lib/errors.js'
 import { formatarNoFuso } from '../lib/dates.js'
 import { uuidDaRota, validar, zData, zDiasSemana, zTexto, dataValida } from '../lib/validate.js'
+import { contarChecklist, statusDoDia, statusPelaChecklist } from '../lib/checklist.js'
+
+const LIMITE_ITENS = 30
+// Item novo vem sem id; item que já existe volta com o id dele (assim as marcações são preservadas).
+const zChecklist = z
+  .array(z.object({ id: z.string().uuid().nullish(), texto: zTexto(1, 200) }))
+  .max(LIMITE_ITENS, `No máximo ${LIMITE_ITENS} itens por checklist.`)
 
 const zCriar = z.object({
   texto: zTexto(1, 300),
   tipo: z.enum(['unica', 'recorrente']).default('unica'),
   data: zData.optional(),
   dias: zDiasSemana.optional(),
-  criada: zData.optional()
+  criada: zData.optional(),
+  checklist: zChecklist.optional()
 })
 const zAtualizar = z
-  .object({ texto: zTexto(1, 300), tipo: z.enum(['unica', 'recorrente']), data: zData, dias: zDiasSemana, criada: zData })
+  .object({
+    texto: zTexto(1, 300),
+    tipo: z.enum(['unica', 'recorrente']),
+    data: zData,
+    dias: zDiasSemana,
+    criada: zData,
+    checklist: zChecklist
+  })
   .partial()
 const zConclusao = z.object({ concluida: z.boolean() })
 const zStatus = z.object({ status: z.enum(['pendente', 'andamento', 'concluida']) })
+const zItemFeito = z.object({ feito: z.boolean() })
 
 const hojeDe = (usuario) => formatarNoFuso(new Date(), usuario.timezone).data
+
+// Ajusta o estado do dia conforme a checklist (todos marcados = concluída). Devolve a tarefa já atualizada.
+async function aplicarRegraDaChecklist(tarefas, userId, id, dia, opcoes) {
+  const tarefa = await tarefas.obter(userId, id)
+  if (!tarefa) return null
+  const { total, feitos } = contarChecklist(tarefa, dia)
+  const atual = statusDoDia(tarefa, dia)
+  const alvo = statusPelaChecklist(atual, total, feitos, opcoes)
+  if (alvo === atual) return tarefa
+  await tarefas.definirStatus(userId, id, dia, alvo)
+  return tarefas.obter(userId, id)
+}
 
 // Tarefas são independentes de eventos: nada aqui cria, altera ou lê eventos do calendário.
 export function criarRotasTarefas({ repos }) {
@@ -39,7 +67,8 @@ export function criarRotasTarefas({ repos }) {
       dias: c.tipo === 'recorrente' ? c.dias : [],
       criada: c.criada ?? hoje
     })
-    res.status(201).json({ tarefa })
+    if (c.checklist?.length) await tarefas.definirChecklist(req.usuario.id, tarefa.id, c.checklist)
+    res.status(201).json({ tarefa: await tarefas.obter(req.usuario.id, tarefa.id) })
   }))
 
   router.patch('/:id', assincrono(async (req, res) => {
@@ -57,7 +86,13 @@ export function criarRotasTarefas({ repos }) {
     if ('criada' in mudancas) campos.criada = mudancas.criada
     campos.dias = tipo === 'recorrente' ? dias : []
     campos.data = tipo === 'unica' ? (mudancas.data ?? atual.data ?? hojeDe(req.usuario)) : null
-    res.json({ tarefa: await tarefas.atualizar(req.usuario.id, id, campos) })
+    await tarefas.atualizar(req.usuario.id, id, campos)
+    if (mudancas.checklist) {
+      await tarefas.definirChecklist(req.usuario.id, id, mudancas.checklist)
+      // Itens novos/removidos mudam a conta de "todos marcados": reavalia o dia de hoje.
+      return res.json({ tarefa: await aplicarRegraDaChecklist(tarefas, req.usuario.id, id, hojeDe(req.usuario)) })
+    }
+    res.json({ tarefa: await tarefas.obter(req.usuario.id, id) })
   }))
 
   router.delete('/:id', assincrono(async (req, res) => {
@@ -81,6 +116,16 @@ export function criarRotasTarefas({ repos }) {
     const { status } = validar(zStatus, req.body)
     if (!(await tarefas.definirStatus(req.usuario.id, id, req.params.dia, status))) throw naoEncontrado('Tarefa não encontrada.')
     res.json({ tarefa: await tarefas.obter(req.usuario.id, id) })
+  }))
+
+  // Item da checklist marcado/desmarcado em um dia. Marcou o último item: a tarefa conclui naquele dia.
+  router.put('/:id/checklist/:itemId/:dia', assincrono(async (req, res) => {
+    const id = uuidDaRota(req.params.id)
+    const itemId = uuidDaRota(req.params.itemId)
+    if (!dataValida(req.params.dia)) throw requisicaoInvalida('Data inválida.')
+    const { feito } = validar(zItemFeito, req.body)
+    if (!(await tarefas.definirItemChecklist(req.usuario.id, id, itemId, req.params.dia, feito))) throw naoEncontrado('Item não encontrado.')
+    res.json({ tarefa: await aplicarRegraDaChecklist(tarefas, req.usuario.id, id, req.params.dia, { desmarcou: !feito }) })
   }))
 
   return router

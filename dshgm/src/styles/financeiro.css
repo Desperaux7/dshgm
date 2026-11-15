@@ -314,7 +314,7 @@
 
 .finance-toolbar option {
   color: var(--text);
-  background: #0b1a1d;
+  background: var(--popover);
 }
 
 .toolbar-spacer {
@@ -610,7 +610,7 @@
 
 .form-grid option {
   color: var(--text);
-  background: #0b1a1d;
+  background: var(--popover);
 }
 
 .input-prefix {
@@ -1097,7 +1097,7 @@
 
 .cat-new-save {
   padding: 0 14px;
-  color: #03201d;
+  color: var(--on-accent);
   background: var(--cyan);
   border: 0;
   font-weight: 600;
@@ -1627,5 +1627,66 @@
 
   .invoice-stats {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+/* Paginação do histórico (10 por página) */
+
+.pagination {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1px solid var(--line);
+}
+
+.page-btn {
+  display: grid;
+  min-width: 34px;
+  height: 34px;
+  place-items: center;
+  padding: 0 8px;
+  color: var(--muted);
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  font-size: 13px;
+  transition: color 0.2s, background 0.2s, border-color 0.2s;
+}
+
+.page-btn:hover:not(:disabled) {
+  color: var(--text);
+  border-color: var(--line-strong);
+}
+
+.page-btn[aria-current='page'] {
+  color: var(--cyan);
+  background: rgba(var(--cyan-rgb), 0.1);
+  border-color: rgba(var(--cyan-rgb), 0.3);
+}
+
+.page-btn:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.page-gap {
+  color: var(--faint);
+}
+
+.page-info {
+  width: 100%;
+  color: var(--faint);
+  font-size: 12px;
+  text-align: center;
+}
+
+@media (min-width: 640px) {
+  .page-info {
+    width: auto;
+    margin-left: 8px;
   }
 }

@@ -5,8 +5,11 @@ import { icon } from '../modules/icons.js'
 import { iniciarShell, mostrarAviso } from '../modules/shell.js'
 import {
   CATEGORIAS_PADRAO,
-  carregarFavoritos,
+  EVENTO_FAVORITOS,
+  abrirCaixaPasta,
+  carregarTudo,
   categoriasEm,
+  criarIconePasta,
   criarIconeSite,
   hostDe,
   normalizarURL
@@ -29,10 +32,31 @@ const campoNovaCategoria = document.querySelector('#fav-new-category')
 const campoFixado = document.querySelector('#fav-pinned')
 const erro = document.querySelector('#fav-error')
 const botaoExcluir = document.querySelector('#fav-delete')
+const campoPasta = document.querySelector('#fav-folder')
+const campoBarra = document.querySelector('#fav-bar')
+const blocoBarra = document.querySelector('#fav-bar-field')
+const linhaFixado = document.querySelector('#fav-pinned-row')
+const notaPasta = document.querySelector('#fav-folder-note')
+const areaPastas = document.querySelector('#fav-folders')
+
+const dialogoPasta = document.querySelector('#folder-dialog')
+const formPasta = document.querySelector('#folder-form')
+const campoNomePasta = document.querySelector('#folder-name')
+const campoBarraPasta = document.querySelector('#folder-bar')
+const erroPasta = document.querySelector('#folder-error')
+const botaoExcluirPasta = document.querySelector('#folder-delete')
+
+const dialogoCategorias = document.querySelector('#cat-dialog')
+const listaCategorias = document.querySelector('#cat-list')
+const erroCategorias = document.querySelector('#cat-error')
 
 const NOVA = '__nova__'
+const SOLTO = '__solto__'
+const ROTULO_BARRA = { central: 'Central', superior: 'Superior' }
 
 let favoritos = []
+let pastas = []
+let editandoPasta = null
 let carregado = false
 let erroCarga = ''
 let categoriaAtiva = 'todas'
@@ -45,9 +69,12 @@ const normalizarTexto = (t) =>
 
 const textoErro = (erro) => erro?.message || 'Não foi possível concluir a operação. Tente novamente.'
 
+// Avisa as barras de atalhos (central e superior) que algo mudou.
+const avisarBarras = () => window.dispatchEvent(new CustomEvent(EVENTO_FAVORITOS))
+
 async function carregar() {
   try {
-    favoritos = await carregarFavoritos()
+    ;({ favoritos, pastas } = await carregarTudo())
     carregado = true
     erroCarga = ''
   } catch (falha) {
@@ -99,6 +126,14 @@ function criarCartao(favorito) {
   host.textContent = hostDe(favorito.url)
   texto.append(nome, host)
   link.append(criarIconeSite(favorito), texto)
+
+  // Onde o link aparece: pasta (quando houver) e barra.
+  const pasta = pastas.find((p) => p.id === favorito.pastaId)
+  const marcas = document.createElement('span')
+  marcas.className = 'fav-tags'
+  const dentro = pasta ? `${pasta.nome} · ${ROTULO_BARRA[pasta.barra]}` : favorito.fixado ? `Barra ${ROTULO_BARRA[favorito.barra].toLowerCase()}` : 'Fora das barras'
+  marcas.textContent = dentro
+  texto.append(marcas)
 
   const acoes = document.createElement('div')
   acoes.className = 'item-actions'
@@ -153,8 +188,56 @@ function mensagemVazia() {
   return caixa
 }
 
+function renderizarPastas() {
+  areaPastas.hidden = pastas.length === 0
+  areaPastas.replaceChildren()
+  if (!pastas.length) return
+
+  const titulo = document.createElement('h2')
+  titulo.className = 'fav-group-title'
+  titulo.textContent = 'Pastas'
+  const grade = document.createElement('div')
+  grade.className = 'fav-grid'
+
+  pastas.forEach((pasta) => {
+    const links = favoritos.filter((f) => f.pastaId === pasta.id).sort((a, b) => a.criado - b.criado)
+    const cartao = document.createElement('article')
+    cartao.className = 'fav-card'
+
+    const abrir = document.createElement('button')
+    abrir.type = 'button'
+    abrir.className = 'fav-link folder-open-btn'
+    abrir.setAttribute('aria-haspopup', 'dialog')
+    abrir.setAttribute('aria-expanded', 'false')
+    const texto = document.createElement('span')
+    texto.className = 'fav-text'
+    const nome = document.createElement('strong')
+    nome.textContent = pasta.nome
+    const detalhe = document.createElement('span')
+    detalhe.textContent = `${links.length} ${links.length === 1 ? 'link' : 'links'} · barra ${ROTULO_BARRA[pasta.barra].toLowerCase()}`
+    texto.append(nome, detalhe)
+    abrir.append(criarIconePasta(links), texto)
+    abrir.addEventListener('click', () => abrirCaixaPasta(pasta, links, abrir))
+
+    const acoes = document.createElement('div')
+    acoes.className = 'item-actions'
+    const editar = document.createElement('button')
+    editar.type = 'button'
+    editar.innerHTML = icon('pencil')
+    editar.title = 'Editar pasta'
+    editar.setAttribute('aria-label', `Editar pasta ${pasta.nome}`)
+    editar.addEventListener('click', () => abrirPopupPasta(pasta))
+    acoes.append(editar)
+
+    cartao.append(abrir, acoes)
+    grade.append(cartao)
+  })
+  areaPastas.append(titulo, grade)
+}
+
 function renderizar() {
   renderizarFiltros()
+  renderizarPastas()
 
   const termo = normalizarTexto(campoBusca.value.trim())
   const visiveis = favoritos
@@ -237,6 +320,24 @@ function atualizarNovaCategoria() {
 
 campoCategoria.addEventListener('change', atualizarNovaCategoria)
 
+function preencherPastas(selecionada) {
+  campoPasta.replaceChildren(
+    new Option('Solto (fora de pastas)', SOLTO),
+    ...pastas.map((p) => new Option(`Pasta: ${p.nome} (${ROTULO_BARRA[p.barra].toLowerCase()})`, p.id))
+  )
+  campoPasta.value = selecionada && pastas.some((p) => p.id === selecionada) ? selecionada : SOLTO
+  atualizarLocal()
+}
+
+// Link em pasta herda a barra da pasta: os campos "barra" e "mostrar" só valem para link solto.
+function atualizarLocal() {
+  const emPasta = campoPasta.value !== SOLTO
+  blocoBarra.hidden = emPasta
+  linhaFixado.hidden = emPasta
+  notaPasta.hidden = !emPasta
+}
+campoPasta.addEventListener('change', atualizarLocal)
+
 function abrirPopup(favorito = null) {
   editando = favorito
   erro.textContent = ''
@@ -248,8 +349,10 @@ function abrirPopup(favorito = null) {
   campoNome.value = favorito?.nome ?? ''
   campoUrl.value = favorito?.url ?? ''
   campoFixado.checked = favorito?.fixado ?? true
+  campoBarra.value = favorito?.barra ?? 'central'
   campoNovaCategoria.value = ''
   preencherCategorias(favorito?.categoria)
+  preencherPastas(favorito?.pastaId)
 
   dialogo.showModal()
   campoNome.focus()
@@ -288,7 +391,14 @@ form.addEventListener('submit', async (e) => {
     return
   }
 
-  const dados = { nome, url, categoria, fixado: campoFixado.checked }
+  const emPasta = campoPasta.value !== SOLTO
+  const dados = { nome, url, categoria, pastaId: emPasta ? campoPasta.value : null }
+  if (emPasta) {
+    dados.fixado = true
+  } else {
+    dados.fixado = campoFixado.checked
+    dados.barra = campoBarra.value
+  }
   const botaoSalvar = form.querySelector('[type="submit"]')
   if (botaoSalvar) botaoSalvar.disabled = true // evita envio duplo enquanto a API responde
 
@@ -310,6 +420,7 @@ form.addEventListener('submit', async (e) => {
   fecharPopup()
   if (categoriaAtiva !== 'todas') categoriaAtiva = categoria
   renderizar()
+  avisarBarras()
   mostrarAviso(novo ? 'Link adicionado' : 'Link atualizado')
 })
 
@@ -323,6 +434,7 @@ async function excluir(favorito) {
   }
   favoritos = favoritos.filter((f) => f.id !== favorito.id)
   renderizar()
+  avisarBarras()
   mostrarAviso('Link excluído')
   return true
 }
@@ -335,11 +447,189 @@ botaoExcluir.addEventListener('click', async () => {
 document.addEventListener('visibilitychange', async () => {
   if (document.hidden || !carregado) return
   try {
-    favoritos = await carregarFavoritos()
+    ;({ favoritos, pastas } = await carregarTudo())
     renderizar()
   } catch {
     /* mantém o que já está na tela */
   }
+})
+
+/* ---------- Pastas ---------- */
+
+function abrirPopupPasta(pasta = null) {
+  editandoPasta = pasta
+  erroPasta.textContent = ''
+  document.querySelector('#folder-dialog-title').textContent = pasta ? 'Editar pasta' : 'Criar pasta'
+  document.querySelector('#folder-dialog-kicker').textContent = pasta ? 'EDIÇÃO' : 'NOVA PASTA'
+  botaoExcluirPasta.hidden = !pasta
+  campoNomePasta.value = pasta?.nome ?? ''
+  campoBarraPasta.value = pasta?.barra ?? 'central'
+  dialogoPasta.showModal()
+  campoNomePasta.focus()
+}
+
+const fecharPopupPasta = () => dialogoPasta.close()
+document.querySelector('#folder-new').addEventListener('click', () => abrirPopupPasta())
+document.querySelector('#folder-cancel').addEventListener('click', fecharPopupPasta)
+document.querySelector('#folder-cancel-x').addEventListener('click', fecharPopupPasta)
+dialogoPasta.addEventListener('click', (e) => {
+  if (e.target === dialogoPasta) fecharPopupPasta()
+})
+
+formPasta.addEventListener('submit', async (e) => {
+  e.preventDefault()
+  const nome = campoNomePasta.value.trim()
+  if (!nome) {
+    erroPasta.textContent = 'Informe um nome para a pasta.'
+    campoNomePasta.focus()
+    return
+  }
+  const dados = { nome, barra: campoBarraPasta.value }
+  const botao = formPasta.querySelector('[type="submit"]')
+  botao.disabled = true
+  const nova = !editandoPasta
+  try {
+    if (editandoPasta) {
+      const atualizada = await favoritosApi.atualizarPasta(editandoPasta.id, dados)
+      pastas = pastas.map((p) => (p.id === atualizada.id ? atualizada : p))
+      // Os links da pasta acompanham a barra dela.
+      favoritos = favoritos.map((f) => (f.pastaId === atualizada.id ? { ...f, barra: atualizada.barra } : f))
+    } else {
+      pastas = [...pastas, await favoritosApi.criarPasta(dados)]
+    }
+  } catch (falha) {
+    erroPasta.textContent = textoErro(falha)
+    return
+  } finally {
+    botao.disabled = false
+  }
+  fecharPopupPasta()
+  renderizar()
+  avisarBarras()
+  mostrarAviso(nova ? 'Pasta criada' : 'Pasta atualizada')
+})
+
+botaoExcluirPasta.addEventListener('click', async () => {
+  if (!editandoPasta) return
+  if (!confirm(`Excluir a pasta "${editandoPasta.nome}"? Os links dela não serão apagados: ficam soltos.`)) return
+  try {
+    await favoritosApi.excluirPasta(editandoPasta.id)
+  } catch (falha) {
+    erroPasta.textContent = textoErro(falha)
+    return
+  }
+  const id = editandoPasta.id
+  pastas = pastas.filter((p) => p.id !== id)
+  favoritos = favoritos.map((f) => (f.pastaId === id ? { ...f, pastaId: null } : f))
+  fecharPopupPasta()
+  renderizar()
+  avisarBarras()
+  mostrarAviso('Pasta excluída')
+})
+
+/* ---------- Gerenciar categorias ---------- */
+
+// Só as categorias criadas pelo usuário (as padrão são fixas).
+const categoriasProprias = () => categoriasEm(favoritos).filter((c) => !CATEGORIAS_PADRAO.includes(c))
+
+function renderizarCategorias() {
+  listaCategorias.replaceChildren()
+  const proprias = categoriasProprias()
+  if (!proprias.length) {
+    const vazio = document.createElement('p')
+    vazio.className = 'empty-state'
+    vazio.textContent = 'Você ainda não criou categorias. Crie uma ao adicionar um link.'
+    listaCategorias.append(vazio)
+    return
+  }
+
+  proprias.forEach((nome) => {
+    const total = favoritos.filter((f) => f.categoria === nome).length
+    const linha = document.createElement('div')
+    linha.className = 'cat-manage-row'
+
+    const campo = document.createElement('input')
+    campo.type = 'text'
+    campo.maxLength = 40
+    campo.value = nome
+    campo.setAttribute('aria-label', `Nome da categoria ${nome}`)
+
+    const contagem = document.createElement('small')
+    contagem.textContent = `${total} ${total === 1 ? 'link' : 'links'}`
+
+    const salvar = document.createElement('button')
+    salvar.type = 'button'
+    salvar.className = 'btn btn-sm'
+    salvar.textContent = 'Renomear'
+    const renomear = async () => {
+      const novo = campo.value.trim()
+      if (!novo) {
+        erroCategorias.textContent = 'O nome da categoria não pode ficar vazio.'
+        return
+      }
+      if (novo === nome) return
+      salvar.disabled = true
+      try {
+        await favoritosApi.renomearCategoria(nome, novo)
+      } catch (falha) {
+        erroCategorias.textContent = textoErro(falha)
+        salvar.disabled = false
+        return
+      }
+      favoritos = favoritos.map((f) => (f.categoria === nome ? { ...f, categoria: novo } : f))
+      if (categoriaAtiva === nome) categoriaAtiva = novo
+      erroCategorias.textContent = ''
+      renderizar()
+      renderizarCategorias()
+      mostrarAviso('Categoria renomeada')
+    }
+    salvar.addEventListener('click', renomear)
+    campo.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault()
+        renomear()
+      }
+    })
+
+    const remover = document.createElement('button')
+    remover.type = 'button'
+    remover.className = 'btn btn-sm btn-danger'
+    remover.textContent = 'Excluir'
+    remover.addEventListener('click', async () => {
+      const aviso = total
+        ? `Excluir a categoria "${nome}"? Os ${total} link(s) dela vão para "Dia a dia" (nenhum link é apagado).`
+        : `Excluir a categoria "${nome}"?`
+      if (!confirm(aviso)) return
+      remover.disabled = true
+      try {
+        await favoritosApi.excluirCategoria(nome)
+      } catch (falha) {
+        erroCategorias.textContent = textoErro(falha)
+        remover.disabled = false
+        return
+      }
+      favoritos = favoritos.map((f) => (f.categoria === nome ? { ...f, categoria: CATEGORIAS_PADRAO[2] } : f))
+      erroCategorias.textContent = ''
+      renderizar()
+      renderizarCategorias()
+      mostrarAviso('Categoria excluída')
+    })
+
+    linha.append(campo, contagem, salvar, remover)
+    listaCategorias.append(linha)
+  })
+}
+
+document.querySelector('#cat-manage').addEventListener('click', () => {
+  erroCategorias.textContent = ''
+  renderizarCategorias()
+  dialogoCategorias.showModal()
+})
+const fecharCategorias = () => dialogoCategorias.close()
+document.querySelector('#cat-close').addEventListener('click', fecharCategorias)
+document.querySelector('#cat-close-x').addEventListener('click', fecharCategorias)
+dialogoCategorias.addEventListener('click', (e) => {
+  if (e.target === dialogoCategorias) fecharCategorias()
 })
 
 renderizar()

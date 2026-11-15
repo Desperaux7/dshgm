@@ -21,6 +21,7 @@
         if (p.destaque) r.dataset.accent = p.destaque
         if (p.fundo) r.dataset.aurora = { animado: 'animada', estatico: 'estatica', desligado: 'desligada' }[p.fundo] || 'animada'
         if (p.densidade) r.dataset.densidade = p.densidade
+        if (p.modo) r.dataset.modo = p.modo
       } catch (e) {}
     </script>
   </head>
@@ -147,6 +148,18 @@
                 <svg class="icon" aria-hidden="true"><use href="#i-chevron-right" /></svg>
               </a>
             </article>
+            <article class="stat-card" data-card="resumo-times" hidden>
+              <div class="stat-top">
+                <span class="stat-label">Times</span>
+                <span class="chip chip-ocean"><svg class="icon" aria-hidden="true"><use href="#i-users" /></svg></span>
+              </div>
+              <strong class="stat-value" id="teams-people">0</strong>
+              <span class="stat-description" id="teams-summary">Colaboradores cadastrados</span>
+              <a class="stat-link" href="times.html">
+                Abrir times
+                <svg class="icon" aria-hidden="true"><use href="#i-chevron-right" /></svg>
+              </a>
+            </article>
           </div>
 
           <!-- Módulos -->
@@ -194,6 +207,25 @@
               <ul id="task-list" class="task-list">
                 <li class="task-placeholder">Nenhuma tarefa para hoje.</li>
               </ul>
+            </section>
+
+            <!-- Times (modo profissional) -->
+            <section class="panel teams-panel" id="times-painel" data-card="painel-times" hidden>
+              <div class="panel-header">
+                <div>
+                  <p class="kicker">GESTÃO</p>
+                  <h3>Times</h3>
+                </div>
+                <span class="chip chip-ocean"><svg class="icon" aria-hidden="true"><use href="#i-users" /></svg></span>
+              </div>
+
+              <ul class="team-list" id="teams-list">
+                <li class="task-placeholder">Carregando times...</li>
+              </ul>
+
+              <div class="panel-actions">
+                <a class="secondary-button" href="times.html">Abrir times</a>
+              </div>
             </section>
 
             <!-- Spotify -->
@@ -300,6 +332,12 @@
         <div class="field" id="task-days-field" hidden>
           Repetir nos dias
           <div class="weekdays" id="task-weekdays" role="group" aria-label="Dias da semana"></div>
+        </div>
+
+        <div class="field" id="task-checklist-field">
+          Checklist (opcional)
+          <ul class="checklist-edit" id="task-checklist-edit"></ul>
+          <button class="link-btn" id="task-checklist-add" type="button">+ Adicionar item</button>
         </div>
 
         <p class="modal-error" id="task-error" role="alert"></p>

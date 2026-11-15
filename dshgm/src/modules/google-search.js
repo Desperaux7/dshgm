@@ -69,5 +69,9 @@ export function iniciarPesquisaGoogle() {
     }
 
     input.value = consulta
+
+    // Pesquisa feita: depois que o navegador montar e enviar o formulário (o envio lê o campo ao fim deste
+    // evento), limpa o texto e recolhe a barra, deixando só a lupa. Esvaziar antes perderia a consulta.
+    setTimeout(() => definirAberta(false), 0)
   })
 }

@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Times">
+  <meta name="theme-color" content="#040a0b">
+  <title>Times | DSHGM</title>
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Montserrat:wght@200;300;400;500;600;700&display=swap">
+  <script>
+    /* Aplica as preferências antes da primeira pintura (evita piscar a cor padrão). */
+    try {
+      var p = JSON.parse(localStorage.getItem('dashboard-preferencias')) || {}
+      var r = document.documentElement
+      if (p.destaque) r.dataset.accent = p.destaque
+      if (p.fundo) r.dataset.aurora = { animado: 'animada', estatico: 'estatica', desligado: 'desligada' }[p.fundo] || 'animada'
+      if (p.densidade) r.dataset.densidade = p.densidade
+        if (p.modo) r.dataset.modo = p.modo
+    } catch (e) {}
+  </script>
+</head>
+
+<body>
+  <div class="aurora aurora-soft" aria-hidden="true">
+    <span class="a1"></span><span class="a2"></span><span class="a3"></span>
+  </div>
+
+  <!-- Menu lateral, conta e painel de perfil são injetados por src/modules/shell.js -->
+  <div class="app" data-page="times">
+    <main class="page" id="times">
+
+      <header class="page-header">
+        <a href="index.html" class="back-link">
+          <svg class="icon" aria-hidden="true"><use href="#i-arrow-left"></use></svg>
+          Voltar à dashboard
+        </a>
+        <p class="kicker">GESTÃO</p>
+        <h1>Times</h1>
+        <p class="page-lead">Seus times, subtimes e colaboradores: pontos fortes, pontos de melhoria, eventos e anotações em um só lugar.</p>
+      </header>
+
+      <div class="page-toolbar">
+        <div class="filters" id="team-tabs" role="group" aria-label="Escolher time"></div>
+        <span class="spacer"></span>
+        <button class="btn btn-primary" id="team-new" type="button">
+          <svg class="icon" aria-hidden="true"><use href="#i-plus"></use></svg>
+          Novo time
+        </button>
+      </div>
+
+      <section class="page-panel" id="team-view" aria-label="Time selecionado"></section>
+
+    </main>
+  </div>
+
+  <!-- Pop-up de time -->
+  <dialog class="modal" id="team-dialog" aria-labelledby="team-dialog-title">
+    <form class="modal-form" id="team-form" novalidate>
+      <div class="modal-head">
+        <div>
+          <p class="kicker" id="team-dialog-kicker">NOVO TIME</p>
+          <h2 id="team-dialog-title">Adicionar time</h2>
+        </div>
+        <button class="icon-btn" data-close type="button" aria-label="Fechar">
+          <svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg>
+        </button>
+      </div>
+      <label class="field">
+        Nome da equipe
+        <input id="team-name" type="text" maxlength="80" autocomplete="off" placeholder="Ex.: Relacionamento">
+      </label>
+      <label class="field">
+        Setor
+        <input id="team-sector" type="text" maxlength="80" autocomplete="off" placeholder="Ex.: Atendimento ao cliente">
+      </label>
+      <p class="modal-error" id="team-error" role="alert"></p>
+      <div class="modal-actions">
+        <button class="btn btn-danger" id="team-delete" type="button" hidden>Excluir time</button>
+        <span class="spacer"></span>
+        <button class="btn" data-close type="button">Cancelar</button>
+        <button class="btn btn-primary" type="submit">Salvar</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- Pop-up de subtime -->
+  <dialog class="modal" id="sub-dialog" aria-labelledby="sub-dialog-title">
+    <form class="modal-form" id="sub-form" novalidate>
+      <div class="modal-head">
+        <div>
+          <p class="kicker" id="sub-dialog-kicker">NOVO SUBTIME</p>
+          <h2 id="sub-dialog-title">Adicionar subtime</h2>
+        </div>
+        <button class="icon-btn" data-close type="button" aria-label="Fechar">
+          <svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg>
+        </button>
+      </div>
+      <label class="field">
+        Nome do subtime
+        <input id="sub-name" type="text" maxlength="80" autocomplete="off" placeholder="Ex.: Cobrança, Suporte, SAC">
+      </label>
+      <p class="drawer-note" id="sub-note" hidden>Excluir o subtime não exclui as pessoas: elas continuam no time, sem subtime.</p>
+      <p class="modal-error" id="sub-error" role="alert"></p>
+      <div class="modal-actions">
+        <button class="btn btn-danger" id="sub-delete" type="button" hidden>Excluir subtime</button>
+        <span class="spacer"></span>
+        <button class="btn" data-close type="button">Cancelar</button>
+        <button class="btn btn-primary" type="submit">Salvar</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- Pop-up de colaborador -->
+  <dialog class="modal modal-wide" id="member-dialog" aria-labelledby="member-dialog-title">
+    <form class="modal-form" id="member-form" novalidate>
+      <div class="modal-head">
+        <div>
+          <p class="kicker" id="member-dialog-kicker">NOVO COLABORADOR</p>
+          <h2 id="member-dialog-title">Adicionar colaborador</h2>
+        </div>
+        <button class="icon-btn" data-close type="button" aria-label="Fechar">
+          <svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg>
+        </button>
+      </div>
+
+      <div class="field-row">
+        <label class="field">
+          Nome
+          <input id="member-name" type="text" maxlength="100" autocomplete="off" placeholder="Nome do colaborador">
+        </label>
+        <label class="field">
+          Cargo
+          <input id="member-role" type="text" maxlength="100" autocomplete="off" placeholder="Ex.: Analista de suporte">
+        </label>
+      </div>
+
+      <label class="field" id="member-sub-field">
+        Subtime
+        <select id="member-sub"></select>
+      </label>
+
+      <div class="field">
+        Pontos fortes
+        <ul class="row-editor" id="member-strengths"></ul>
+        <button class="link-btn" id="member-strength-add" type="button">+ Adicionar ponto forte</button>
+      </div>
+
+      <div class="field">
+        Pontos de melhoria
+        <p class="drawer-note">Todo ponto de melhoria precisa de uma evidência (ex.: número de um protocolo). Marque "Desenvolvido" quando a habilidade for adquirida.</p>
+        <ul class="row-editor" id="member-improvements"></ul>
+        <button class="link-btn" id="member-improvement-add" type="button">+ Adicionar ponto de melhoria</button>
+      </div>
+
+      <div class="field">
+        Últimos eventos
+        <p class="drawer-note">Feedbacks, reuniões e outros acontecimentos.</p>
+        <ul class="row-editor" id="member-events"></ul>
+        <button class="link-btn" id="member-event-add" type="button">+ Registrar evento</button>
+      </div>
+
+      <label class="field">
+        Perfil (anotações comportamentais)
+        <textarea id="member-profile" rows="4" maxlength="4000" placeholder="Anotações comportamentais, estilo de trabalho, contexto..."></textarea>
+      </label>
+
+      <p class="modal-error" id="member-error" role="alert"></p>
+      <div class="modal-actions">
+        <button class="btn btn-danger" id="member-delete" type="button" hidden>Excluir</button>
+        <span class="spacer"></span>
+        <button class="btn" data-close type="button">Cancelar</button>
+        <button class="btn btn-primary" type="submit">Salvar</button>
+      </div>
+    </form>
+  </dialog>
+
+  <script type="module" src="/src/entradas/times.js"></script>
+</body>
+</html>

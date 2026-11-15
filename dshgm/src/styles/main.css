@@ -30,6 +30,13 @@
   --mint: #34d399;
   --coral: #f4909c;
 
+  /* Cores que mudam por tema (os temas novos sobrescrevem estes valores) */
+  --popover: #0b1a1d;
+  --popover-rgb: 11, 26, 29;
+  --deep-rgb: 3, 12, 13;
+  --aur-base: #07262a;
+  --on-accent: #03201d;
+
   --rail: 64px;
   --menu-width: 236px;
   --radius: 16px;
@@ -58,6 +65,44 @@
 :root[data-accent='ambar'] {
   --cyan: #fbbf24; --sky: #fcd34d; --cyan-rgb: 251, 191, 36; --sky-rgb: 252, 211, 77;
   --aur-1: 180, 120, 20; --aur-2: 251, 191, 36; --aur-3: 42, 147, 173;
+}
+
+/* Temas de duas cores: trocam fundo, superfícies, texto e destaque (o restante do visual segue igual) */
+:root[data-accent='vermelho'] {
+  --bg: #0a0405; --surface: rgba(26, 8, 10, 0.6); --surface-strong: rgba(32, 10, 12, 0.84);
+  --line: rgba(248, 113, 113, 0.14); --line-strong: rgba(248, 113, 113, 0.28);
+  --text: #fbeaea; --muted: #b59494; --faint: #805f5f;
+  --cyan: #ef4444; --sky: #fca5a5; --cyan-rgb: 239, 68, 68; --sky-rgb: 252, 165, 165;
+  --ocean: #b91c1c; --petrol: #7f1d1d;
+  --aur-1: 185, 28, 28; --aur-2: 239, 68, 68; --aur-3: 127, 29, 29;
+  --popover: #170709; --popover-rgb: 23, 7, 9; --deep-rgb: 10, 3, 4; --aur-base: #2a0a0d; --on-accent: #1a0305;
+}
+:root[data-accent='dourado'] {
+  --bg: #0a0805; --surface: rgba(24, 19, 8, 0.6); --surface-strong: rgba(30, 24, 10, 0.84);
+  --line: rgba(212, 175, 55, 0.15); --line-strong: rgba(212, 175, 55, 0.3);
+  --text: #f8f1de; --muted: #b3a583; --faint: #7d7255;
+  --cyan: #d4af37; --sky: #f0d878; --cyan-rgb: 212, 175, 55; --sky-rgb: 240, 216, 120;
+  --ocean: #b8860b; --petrol: #78560a;
+  --aur-1: 160, 120, 20; --aur-2: 212, 175, 55; --aur-3: 120, 86, 10;
+  --popover: #16110a; --popover-rgb: 22, 17, 10; --deep-rgb: 10, 8, 4; --aur-base: #26200c; --on-accent: #1a1203;
+}
+:root[data-accent='monocromo'] {
+  --bg: #050505; --surface: rgba(20, 20, 20, 0.62); --surface-strong: rgba(26, 26, 26, 0.86);
+  --line: rgba(255, 255, 255, 0.12); --line-strong: rgba(255, 255, 255, 0.26);
+  --text: #fafafa; --muted: #a3a3a3; --faint: #6b6b6b;
+  --cyan: #f5f5f5; --sky: #ffffff; --cyan-rgb: 245, 245, 245; --sky-rgb: 255, 255, 255;
+  --ocean: #9ca3af; --petrol: #52525b;
+  --aur-1: 120, 120, 120; --aur-2: 220, 220, 220; --aur-3: 80, 80, 80;
+  --popover: #111111; --popover-rgb: 17, 17, 17; --deep-rgb: 5, 5, 5; --aur-base: #1a1a1a; --on-accent: #0a0a0a;
+}
+:root[data-accent='sakura'] {
+  --bg: #0c0609; --surface: rgba(28, 12, 19, 0.6); --surface-strong: rgba(34, 14, 23, 0.84);
+  --line: rgba(249, 168, 201, 0.15); --line-strong: rgba(249, 168, 201, 0.3);
+  --text: #fdeef4; --muted: #c09aab; --faint: #85606f;
+  --cyan: #f9a8c9; --sky: #fde2ee; --cyan-rgb: 249, 168, 201; --sky-rgb: 253, 226, 238;
+  --ocean: #e879a8; --petrol: #9d3d65;
+  --aur-1: 200, 80, 130; --aur-2: 249, 168, 201; --aur-3: 157, 61, 101;
+  --popover: #180a11; --popover-rgb: 24, 10, 17; --deep-rgb: 12, 6, 9; --aur-base: #2e0f1e; --on-accent: #2a0a17;
 }
 
 /* Fundo e densidade (preferências) */
@@ -125,7 +170,7 @@ select:focus-visible {
 }
 
 ::selection {
-  color: #031312;
+  color: var(--on-accent);
   background: var(--cyan);
 }
 
@@ -185,7 +230,7 @@ select:focus-visible {
   overflow: hidden;
   pointer-events: none;
   background:
-    radial-gradient(ellipse at 50% 120%, #07262a 0%, transparent 55%),
+    radial-gradient(ellipse at 50% 120%, var(--aur-base) 0%, transparent 55%),
     var(--bg);
 }
 
@@ -232,7 +277,7 @@ select:focus-visible {
   position: absolute;
   inset: 0;
   content: '';
-  background: radial-gradient(ellipse at 50% 40%, transparent 30%, rgba(3, 8, 9, 0.78) 100%);
+  background: radial-gradient(ellipse at 50% 40%, transparent 30%, rgba(var(--deep-rgb), 0.78) 100%);
 }
 
 @keyframes aurora-a {
@@ -261,7 +306,7 @@ select:focus-visible {
   flex-direction: column;
   width: var(--rail);
   overflow: hidden;
-  background: rgba(3, 9, 10, 0.84);
+  background: rgba(var(--deep-rgb), 0.84);
   border-right: 1px solid var(--line);
   backdrop-filter: blur(14px);
   transition: width 0.3s var(--ease);
@@ -425,7 +470,7 @@ select:focus-visible {
   height: 42px;
   place-items: center;
   padding: 0;
-  color: #03201d;
+  color: var(--on-accent);
   background: linear-gradient(140deg, var(--cyan), var(--ocean));
   border: 1px solid var(--line-strong);
   border-radius: 50%;
@@ -465,7 +510,7 @@ select:focus-visible {
   height: 17px;
   place-items: center;
   color: var(--muted);
-  background: #0b1a1d;
+  background: var(--popover);
   border: 1px solid var(--line-strong);
   border-radius: 50%;
 }
@@ -583,7 +628,7 @@ select:focus-visible {
   padding: 0;
   overflow: auto;
   color: var(--text);
-  background: #0a191c;
+  background: var(--popover);
   border: 1px solid var(--line-strong);
   border-radius: 20px;
   box-shadow: 0 30px 80px rgba(0, 0, 0, 0.6);
@@ -695,7 +740,7 @@ select:focus-visible {
 }
 
 .btn-primary {
-  color: #03201d;
+  color: var(--on-accent);
   background: linear-gradient(135deg, var(--cyan), var(--sky));
   border-color: transparent;
   font-weight: 600;
@@ -833,7 +878,7 @@ select:focus-visible {
   gap: 8px;
   width: 100%;
   height: 46px;
-  color: #03201d;
+  color: var(--on-accent);
   background: linear-gradient(135deg, var(--cyan), var(--sky));
   border: 0;
   border-radius: 12px;
@@ -880,7 +925,7 @@ select:focus-visible {
   display: flex;
   flex-direction: column;
   width: min(392px, 100%);
-  background: rgba(7, 18, 20, 0.96);
+  background: rgba(var(--popover-rgb), 0.96);
   border-left: 1px solid var(--line-strong);
   box-shadow: -24px 0 60px rgba(0, 0, 0, 0.5);
   backdrop-filter: blur(18px);
@@ -975,7 +1020,7 @@ select:focus-visible {
   place-items: center;
   padding: 0;
   overflow: hidden;
-  color: #03201d;
+  color: var(--on-accent);
   background: linear-gradient(140deg, var(--cyan), var(--ocean));
   border: 1px solid var(--line-strong);
   border-radius: 50%;
@@ -996,7 +1041,7 @@ select:focus-visible {
   display: grid;
   place-items: center;
   color: var(--text);
-  background: rgba(3, 12, 13, 0.62);
+  background: rgba(var(--deep-rgb), 0.62);
   opacity: 0;
   transition: opacity 0.2s;
 }
@@ -1058,6 +1103,7 @@ select:focus-visible {
 
 .swatches {
   display: flex;
+  flex-wrap: wrap;
   gap: 10px;
 }
 
@@ -1067,15 +1113,17 @@ select:focus-visible {
   height: 38px;
   place-items: center;
   padding: 0;
-  color: #03201d;
-  background: var(--swatch);
+  color: var(--on-accent);
+  background: linear-gradient(135deg, var(--swatch) 50%, var(--swatch2, var(--swatch)) 50%);
   border: 2px solid transparent;
   border-radius: 50%;
-  box-shadow: inset 0 0 0 2px rgba(3, 12, 13, 0.55);
+  box-shadow: inset 0 0 0 2px rgba(var(--deep-rgb), 0.55);
   transition: transform 0.2s var(--ease), border-color 0.2s;
 }
 
 .swatch .icon {
+  color: #fff;
+  filter: drop-shadow(0 0 2px rgba(0, 0, 0, 0.85));
   width: 16px;
   height: 16px;
   stroke-width: 2.4;
@@ -1294,7 +1342,7 @@ select:focus-visible {
   height: 36px;
   flex-shrink: 0;
   place-items: center;
-  color: #03201d;
+  color: var(--on-accent);
   background: linear-gradient(135deg, var(--cyan), var(--sky));
   border: 0;
   border-radius: 11px;
@@ -1310,4 +1358,239 @@ select:focus-visible {
   width: 18px;
   height: 18px;
   stroke-width: 2;
+}
+
+/* =========================================
+   Favoritos no canto superior: "Todos" e a segunda barra
+   ========================================= */
+
+.top-favs {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-right: 4px;
+}
+
+.top-all {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 42px;
+  padding: 0 14px;
+  color: var(--text);
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid transparent;
+  border-radius: 10px;
+  font-size: 13px;
+  transition: background 0.2s, border-color 0.2s;
+}
+
+.top-all:hover {
+  background: var(--surface-hover);
+  border-color: var(--line-strong);
+}
+
+.top-all .icon {
+  width: 17px;
+  height: 17px;
+}
+
+.top-shortcuts {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.top-shortcut {
+  display: grid;
+  width: 42px;
+  height: 42px;
+  place-items: center;
+  padding: 0;
+  color: inherit;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 12px;
+  transition: background 0.2s, border-color 0.2s, transform 0.2s var(--ease);
+}
+
+.top-shortcut > span:last-child {
+  display: none; /* o nome aparece na dica (title); a barra fica compacta */
+}
+
+.top-shortcut:hover,
+.top-shortcut[aria-expanded='true'] {
+  background: rgba(255, 255, 255, 0.07);
+  border-color: var(--line);
+  transform: translateY(-1px);
+}
+
+.top-shortcut .site-icon {
+  width: 30px;
+  height: 30px;
+  background: rgba(255, 255, 255, 0.06);
+  border-color: var(--line);
+  border-radius: 9px;
+}
+
+.top-shortcut .site-icon img {
+  width: 18px;
+  height: 18px;
+}
+
+[data-modo='profissional'] .top-favs {
+  display: none;
+}
+
+@media (max-width: 760px) {
+  .top-shortcuts,
+  .top-all span {
+    display: none;
+  }
+
+  .top-all {
+    padding: 0 12px;
+  }
+}
+
+/* Pastas de favoritos: grade 2×2 de ícones pequenos, como nas pastas do Android */
+
+.folder-icon {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 3px;
+  width: 46px;
+  height: 46px;
+  flex-shrink: 0;
+  padding: 5px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid var(--line-strong);
+  border-radius: 14px;
+}
+
+.folder-icon .site-icon {
+  width: auto;
+  height: auto;
+  min-width: 0;
+  aspect-ratio: 1;
+  background: rgba(255, 255, 255, 0.07);
+  border: 0;
+  border-radius: 5px;
+  font-size: 8px;
+}
+
+.folder-icon .site-icon img {
+  width: 100%;
+  height: 100%;
+  border-radius: 3px;
+}
+
+.folder-icon.is-empty {
+  border-style: dashed;
+}
+
+.top-shortcut .folder-icon {
+  width: 32px;
+  height: 32px;
+  gap: 2px;
+  padding: 3px;
+  border-radius: 10px;
+}
+
+.shortcut.is-folder,
+.top-shortcut.is-folder {
+  font: inherit;
+  cursor: pointer;
+}
+
+.shortcut.is-folder {
+  background: transparent;
+  border: 0;
+}
+
+.fav-card .folder-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+}
+
+/* Caixa que abre ao clicar na pasta */
+
+.folder-pop {
+  position: fixed;
+  z-index: 60;
+  width: min(300px, calc(100vw - 16px));
+  padding: 12px;
+  background: var(--popover);
+  border: 1px solid var(--line-strong);
+  border-radius: 16px;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.55);
+  animation: pop-in 0.16s var(--ease);
+}
+
+@keyframes pop-in {
+  from { opacity: 0; transform: translateY(-4px) scale(0.98); }
+}
+
+.folder-pop-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 2px 2px 10px;
+  border-bottom: 1px solid var(--line);
+}
+
+.folder-pop-head strong {
+  overflow: hidden;
+  font-size: 14px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.folder-pop-list {
+  display: grid;
+  gap: 2px;
+  max-height: 260px;
+  margin-top: 8px;
+  overflow-y: auto;
+}
+
+.folder-pop-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 8px;
+  color: var(--muted);
+  border-radius: 10px;
+  font-size: 13px;
+  transition: background 0.15s, color 0.15s;
+}
+
+.folder-pop-item span:last-child {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.folder-pop-item:hover {
+  color: var(--text);
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.folder-pop-item .site-icon {
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+}
+
+.folder-pop-item .site-icon img {
+  width: 18px;
+  height: 18px;
+}
+
+.folder-pop-empty {
+  margin: 8px 4px;
+  color: var(--faint);
+  font-size: 12px;
 }

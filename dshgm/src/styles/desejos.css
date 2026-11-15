@@ -158,7 +158,7 @@
   height: 22px;
   padding: 0 9px;
   color: var(--text);
-  background: rgba(3, 12, 13, 0.78);
+  background: rgba(var(--deep-rgb), 0.78);
   border: 1px solid var(--line-strong);
   border-radius: 999px;
   backdrop-filter: blur(8px);
@@ -210,7 +210,7 @@
 .wish-card-actions .icon-btn {
   width: 30px;
   height: 30px;
-  background: rgba(3, 12, 13, 0.78);
+  background: rgba(var(--deep-rgb), 0.78);
   backdrop-filter: blur(8px);
 }
 

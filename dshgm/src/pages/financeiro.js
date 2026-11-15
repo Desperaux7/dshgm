@@ -1,3 +1,4 @@
+import { paginar } from '../services/paginacao.js'
 import '../styles/main.css'
 import '../styles/financeiro.css'
 
@@ -72,6 +73,7 @@ const expenseElement = document.querySelector('#expense-total')
 const savedElement = document.querySelector('#saved-total')
 const countElement = document.querySelector('#transaction-count')
 const listElement = document.querySelector('#transaction-list')
+const paginationElement = document.querySelector('#transaction-pagination')
 const categoryChart = document.querySelector('#category-chart')
 const categoryPeriod = document.querySelector('#category-period')
 const goalChart = document.querySelector('#goal-chart')
@@ -88,6 +90,8 @@ const currencyFormatter = new Intl.NumberFormat('pt-BR', {
 })
 
 let activeFilter = 'all'
+// Histórico: no máximo 10 movimentações por vez, com páginas.
+let currentPage = 1
 
 /* ---------- Utilidades ---------- */
 
@@ -186,6 +190,7 @@ function renderLoading() {
   categoryChart.replaceChildren(emptyMessage(text))
   goalChart.replaceChildren(emptyMessage(text))
   listElement.replaceChildren(emptyMessage(text))
+  paginationElement.hidden = true
 
   if (loadError) {
     const retry = document.createElement('button')
@@ -228,6 +233,7 @@ function fillPeriodSelects() {
 
 monthSelect.addEventListener('change', () => {
   period.month = monthSelect.value
+  currentPage = 1
   renderAll()
 })
 
@@ -235,6 +241,7 @@ yearSelect.addEventListener('change', () => {
   period.year = yearSelect.value
   if (period.year === 'all') period.month = 'all'
   else if (period.month === 'all') period.month = String(now.getMonth() + 1).padStart(2, '0')
+  currentPage = 1
   renderAll()
 })
 
@@ -641,12 +648,61 @@ function getVisible(list) {
     .sort((a, b) => b.date.localeCompare(a.date))
 }
 
+function renderPagination(total, page) {
+  paginationElement.replaceChildren()
+  paginationElement.hidden = page.pages <= 1
+  if (page.pages <= 1) return
+
+  const go = (target) => {
+    currentPage = target
+    renderTransactions(transactions.filter(inPeriod))
+    listElement.scrollIntoView({ block: 'nearest', behavior: 'smooth' })
+  }
+  const button = (label, target, { disabled = false, current = false, text } = {}) => {
+    const b = document.createElement('button')
+    b.type = 'button'
+    b.className = 'page-btn'
+    b.textContent = text ?? label
+    b.disabled = disabled
+    if (current) b.setAttribute('aria-current', 'page')
+    b.setAttribute('aria-label', current ? `Página ${label}, atual` : text ? label : `Ir para a página ${label}`)
+    b.addEventListener('click', () => go(target))
+    return b
+  }
+
+  // Janela de páginas: primeira, última e vizinhas da atual (com reticências quando há salto).
+  const shown = new Set([1, page.pages, page.current - 1, page.current, page.current + 1].filter((n) => n >= 1 && n <= page.pages))
+  const numbers = [...shown].sort((a, b) => a - b)
+
+  paginationElement.append(button('Página anterior', page.current - 1, { disabled: page.current === 1, text: '‹' }))
+  numbers.forEach((n, i) => {
+    if (i > 0 && n - numbers[i - 1] > 1) {
+      const gap = document.createElement('span')
+      gap.className = 'page-gap'
+      gap.textContent = '…'
+      paginationElement.append(gap)
+    }
+    paginationElement.append(button(String(n), n, { current: n === page.current }))
+  })
+  paginationElement.append(button('Próxima página', page.current + 1, { disabled: page.current === page.pages, text: '›' }))
+
+  const info = document.createElement('span')
+  info.className = 'page-info'
+  info.textContent = `${page.start + 1}–${page.end} de ${total}`
+  paginationElement.append(info)
+}
+
 function renderTransactions(list) {
   listElement.replaceChildren()
 
-  const visible = getVisible(list)
+  const allVisible = getVisible(list)
+  const p = paginar(allVisible.length, currentPage)
+  const page = { pages: p.paginas, current: p.atual, start: p.inicio, end: p.fim }
+  currentPage = page.current
+  const visible = allVisible.slice(page.start, page.end)
+  renderPagination(allVisible.length, page)
 
-  countElement.textContent = `${visible.length} ${visible.length === 1 ? 'registro' : 'registros'}`
+  countElement.textContent = `${allVisible.length} ${allVisible.length === 1 ? 'registro' : 'registros'}`
 
   if (visible.length === 0) {
     listElement.appendChild(
@@ -781,6 +837,7 @@ function renderAll() {
 filterButtons.forEach((button) =>
   button.addEventListener('click', () => {
     activeFilter = button.dataset.filter
+    currentPage = 1
     filterButtons.forEach((b) =>
       b.setAttribute('aria-pressed', String(b === button))
     )

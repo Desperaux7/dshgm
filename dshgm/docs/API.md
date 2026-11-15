@@ -96,6 +96,31 @@ futuro grava a URL do arquivo na mesma coluna `image_url`.
 | `GET /preferencias`, `PATCH /preferencias` | Mescla parcial; `foto` (data URL ≤ 600 KB) ou `null` |
 | `PUT /fuso` | `{ fuso: 'America/Sao_Paulo' }` (usado nas conversões do calendário) |
 
+## Checklist de tarefas (v2.0)
+
+Cada tarefa devolve `checklist: [{ id, texto, feitos: { 'AAAA-MM-DD': true } }]` (o preenchimento é por dia, como a conclusão).
+
+- `POST /api/tarefas` e `PATCH /api/tarefas/:id` aceitam `checklist: [{ id?, texto }]` (máx. 30 itens). Item com `id` é mantido (e as marcações dele); sem `id` é criado; o que não vier é removido.
+- `PUT /api/tarefas/:id/checklist/:itemId/:dia` com `{ feito }` marca/desmarca um item. Regra: todos marcados = tarefa concluída no dia; alguns = em andamento; ao desmarcar tudo volta a pendente.
+
+## Favoritos: pastas, barras e categorias (v2.0)
+
+- `GET /api/favoritos` → `{ favoritos, pastas }`. Favorito: `pastaId`, `barra` (`central` | `superior`). Pasta: `{ id, nome, barra }`.
+- Link dentro de pasta herda a barra da pasta. Excluir pasta não apaga links (ficam soltos).
+- `POST /api/favoritos/pastas`, `PATCH|DELETE /api/favoritos/pastas/:id`.
+- `PATCH /api/favoritos/categorias` `{ de, para }` e `DELETE /api/favoritos/categorias?nome=` (links vão para "Dia a dia"). As 4 categorias padrão são fixas.
+
+## Times (v2.0, modo profissional)
+
+- `GET /api/times` → times com `subtimes` e `colaboradores` aninhados.
+- `POST /api/times`, `PATCH|DELETE /api/times/:id` (`nome`, `setor`).
+- `POST /api/times/:id/subtimes`, `PATCH|DELETE /api/times/subtimes/:id`.
+- `POST /api/times/:id/colaboradores`, `PATCH|DELETE /api/times/colaboradores/:id`: `nome`, `cargo`, `subtimeId`, `pontosFortes[]`, `pontosMelhoria[] { texto, evidencia (obrigatória), desenvolvido }`, `eventos[] { tipo: feedback|reuniao|outro, texto, data }`, `perfil`.
+
+## Preferências (v2.0)
+
+Novos campos: `modo` (`pessoal` | `profissional`), `cartoesPro` (cartões da página inicial no modo profissional) e `destaque` ganha `vermelho`, `dourado`, `monocromo` e `sakura`.
+
 ## Agenda e Google Calendar
 
 | Rota | Observações |

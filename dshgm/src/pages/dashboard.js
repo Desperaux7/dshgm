@@ -6,6 +6,7 @@ import { iniciarSpotify } from '../modules/spotify.js'
 import { iniciarPesquisaGoogle } from '../modules/google-search.js'
 import { iniciarAtalhos } from '../modules/favoritos.js'
 import { iniciarAgendaInicio } from '../modules/agenda.js'
+import { iniciarTimesInicio } from '../modules/times.js'
 import { EVENTO, nomeSaudacao } from '../modules/preferencias.js'
 import { financeiroApi } from '../services/financeiroApi.js'
 
@@ -19,6 +20,7 @@ iniciarSpotify()
 iniciarPesquisaGoogle()
 iniciarAtalhos()
 iniciarAgendaInicio()
+iniciarTimesInicio()
 
 function iniciarSaudacao() {
   const titulo = document.querySelector('#welcome-title')

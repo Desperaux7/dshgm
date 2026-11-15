@@ -9,6 +9,7 @@ import { criarRepoFavoritos } from './favorites.js'
 import { criarRepoLazer } from './leisure.js'
 import { criarRepoEventos } from './events.js'
 import { criarRepoCalendario } from './calendar.js'
+import { criarRepoTimes } from './teams.js'
 
 export function criarRepositorios(db) {
   return {
@@ -22,6 +23,7 @@ export function criarRepositorios(db) {
     favoritos: criarRepoFavoritos(db),
     lazer: criarRepoLazer(db),
     eventos: criarRepoEventos(db),
-    calendario: criarRepoCalendario(db)
+    calendario: criarRepoCalendario(db),
+    times: criarRepoTimes(db)
   }
 }

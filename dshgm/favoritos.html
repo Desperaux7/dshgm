@@ -18,6 +18,7 @@
       if (p.destaque) r.dataset.accent = p.destaque
       if (p.fundo) r.dataset.aurora = { animado: 'animada', estatico: 'estatica', desligado: 'desligada' }[p.fundo] || 'animada'
       if (p.densidade) r.dataset.densidade = p.densidade
+        if (p.modo) r.dataset.modo = p.modo
     } catch (e) {}
   </script>
 </head>
@@ -47,6 +48,14 @@
           <input id="fav-search" type="search" placeholder="Pesquisar favoritos ( / )" autocomplete="off" aria-label="Pesquisar favoritos">
         </label>
         <span class="spacer"></span>
+        <button class="btn" id="cat-manage" type="button">
+          <svg class="icon" aria-hidden="true"><use href="#i-sliders"></use></svg>
+          Categorias
+        </button>
+        <button class="btn" id="folder-new" type="button">
+          <svg class="icon" aria-hidden="true"><use href="#i-folder-plus"></use></svg>
+          Nova pasta
+        </button>
         <button class="btn btn-primary" id="fav-add" type="button">
           <svg class="icon" aria-hidden="true"><use href="#i-plus"></use></svg>
           Adicionar link
@@ -54,6 +63,8 @@
       </div>
 
       <div class="filters" id="fav-filters" role="group" aria-label="Filtrar por categoria"></div>
+
+      <section class="page-panel fav-folders" id="fav-folders" aria-label="Pastas" hidden></section>
 
       <section class="page-panel" aria-label="Lista de favoritos">
         <div id="fav-list"></div>
@@ -95,10 +106,24 @@
         <input id="fav-new-category" type="text" maxlength="30" autocomplete="off" placeholder="Ex.: Trabalho">
       </label>
 
-      <label class="switch-row">
-        <span>Mostrar nos atalhos da página inicial</span>
+      <label class="field">
+        Onde fica
+        <select id="fav-folder"></select>
+      </label>
+
+      <label class="field" id="fav-bar-field">
+        Barra de favoritos
+        <select id="fav-bar">
+          <option value="central">Central (abaixo da pesquisa)</option>
+          <option value="superior">Superior (canto superior direito)</option>
+        </select>
+      </label>
+
+      <label class="switch-row" id="fav-pinned-row">
+        <span>Mostrar na barra escolhida</span>
         <input class="switch" id="fav-pinned" type="checkbox" role="switch" checked>
       </label>
+      <p class="drawer-note" id="fav-folder-note" hidden>Links dentro de uma pasta aparecem na barra da pasta.</p>
 
       <p class="modal-error" id="fav-error" role="alert"></p>
 
@@ -109,6 +134,66 @@
         <button class="btn btn-primary" type="submit">Salvar</button>
       </div>
     </form>
+  </dialog>
+
+  <!-- Pop-up de pasta -->
+  <dialog class="modal" id="folder-dialog" aria-labelledby="folder-dialog-title">
+    <form class="modal-form" id="folder-form" novalidate>
+      <div class="modal-head">
+        <div>
+          <p class="kicker" id="folder-dialog-kicker">NOVA PASTA</p>
+          <h2 id="folder-dialog-title">Criar pasta</h2>
+        </div>
+        <button class="icon-btn" id="folder-cancel-x" type="button" aria-label="Fechar">
+          <svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg>
+        </button>
+      </div>
+
+      <label class="field">
+        Nome da pasta
+        <input id="folder-name" type="text" maxlength="40" autocomplete="off" placeholder="Ex.: Trabalho">
+      </label>
+
+      <label class="field">
+        Barra de favoritos
+        <select id="folder-bar">
+          <option value="central">Central (abaixo da pesquisa)</option>
+          <option value="superior">Superior (canto superior direito)</option>
+        </select>
+      </label>
+      <p class="drawer-note">Os links da pasta aparecem juntos, em tamanho pequeno, e abrem numa caixa ao clicar. Excluir a pasta não apaga os links.</p>
+
+      <p class="modal-error" id="folder-error" role="alert"></p>
+
+      <div class="modal-actions">
+        <button class="btn btn-danger" id="folder-delete" type="button" hidden>Excluir</button>
+        <span class="spacer"></span>
+        <button class="btn" id="folder-cancel" type="button">Cancelar</button>
+        <button class="btn btn-primary" type="submit">Salvar</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- Pop-up de categorias -->
+  <dialog class="modal" id="cat-dialog" aria-labelledby="cat-dialog-title">
+    <div class="modal-form">
+      <div class="modal-head">
+        <div>
+          <p class="kicker">ORGANIZAÇÃO</p>
+          <h2 id="cat-dialog-title">Categorias</h2>
+        </div>
+        <button class="icon-btn" id="cat-close-x" type="button" aria-label="Fechar">
+          <svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg>
+        </button>
+      </div>
+      <p class="drawer-note">Renomeie ou exclua as categorias que você criou. As quatro padrão são fixas. Ao excluir, os links vão para "Dia a dia" (nada é apagado).</p>
+      <div class="cat-manage-list" id="cat-list"></div>
+      <p class="modal-error" id="cat-error" role="alert"></p>
+      <div class="modal-actions">
+        <span class="spacer"></span>
+        <button class="btn btn-primary" id="cat-close" type="button">Fechar</button>
+      </div>
+    </div>
   </dialog>
 
   <script type="module" src="/src/entradas/favoritos.js"></script>

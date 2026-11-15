@@ -7,7 +7,9 @@ import { validar } from '../lib/validate.js'
 const zPreferencias = z
   .object({
     nome: z.string().trim().max(40),
-    destaque: z.enum(['ciano', 'oceano', 'menta', 'ambar']),
+    // Modo de uso: define quais módulos aparecem no menu e na página inicial.
+    modo: z.enum(['pessoal', 'profissional']),
+    destaque: z.enum(['ciano', 'oceano', 'menta', 'ambar', 'vermelho', 'dourado', 'monocromo', 'sakura']),
     fundo: z.enum(['animado', 'estatico', 'desligado']),
     densidade: z.enum(['confortavel', 'compacta']),
     hora24: z.boolean(),
@@ -24,6 +26,10 @@ const zPreferencias = z
     cartoes: z
       .record(z.string().regex(/^[a-z0-9-]{1,40}$/), z.boolean())
       .refine((o) => Object.keys(o).length <= 30, 'Cartões demais.'),
+    // Cartões da página inicial no modo profissional (cada modo guarda a sua escolha).
+    cartoesPro: z
+      .record(z.string().regex(/^[a-z0-9-]{1,40}$/), z.boolean())
+      .refine((o) => Object.keys(o).length <= 30, 'Cartões demais.'),
     // Foto de perfil já reduzida pelo navegador (data URL).
     foto: z.string().startsWith('data:image/').max(600000).nullable()
   })
@@ -37,7 +43,8 @@ export function combinar(atual, novo) {
     ...atual,
     ...resto,
     clima: { ...(atual.clima ?? {}), ...(resto.clima ?? {}) },
-    cartoes: { ...(atual.cartoes ?? {}), ...(resto.cartoes ?? {}) }
+    cartoes: { ...(atual.cartoes ?? {}), ...(resto.cartoes ?? {}) },
+    cartoesPro: { ...(atual.cartoesPro ?? {}), ...(resto.cartoesPro ?? {}) }
   }
 }
 

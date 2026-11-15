@@ -1,21 +1,13 @@
 import { icon, injetarIcones } from './icons.js'
-import { EVENTO, aplicarPreferencias, fotoPerfil, nomeExibicao } from './preferencias.js'
+import { EVENTO, aplicarPreferencias, fotoPerfil, modoAtual, nomeExibicao } from './preferencias.js'
 import { iniciarPerfil } from './perfil.js'
 import { encerrarSessao } from '../services/conta.js'
+import { iniciarBarrasFavoritos } from './favoritos.js'
+import { LINKS, linksDoModo } from './modos.js'
+
+export { LINKS, linksDoModo }
 
 const MENU_KEY = 'dashboard-menu'
-
-const LINKS = [
-  { id: 'inicio', href: 'index.html', icone: 'home', texto: 'Início' },
-  { id: 'tarefas', href: 'index.html#tarefas', icone: 'tasks', texto: 'Tarefas' },
-  { id: 'agenda', href: 'agenda.html', icone: 'calendar', texto: 'Agenda' },
-  { id: 'favoritos', href: 'favoritos.html', icone: 'bookmark', texto: 'Favoritos' },
-  { id: 'lazer', href: 'lazer.html', icone: 'gamepad', texto: 'Lazer' },
-  { id: 'desejos', href: 'desejos.html', icone: 'gift', texto: 'Lista de Desejos' },
-  { id: 'financeiro', href: 'financeiro.html', icone: 'dollar', texto: 'Financeiro' },
-  { id: 'graficos', href: 'financeiro.html#graficos', icone: 'chart', texto: 'Gráficos' },
-  { id: 'spotify', href: 'index.html#spotify', icone: 'spotify', texto: 'Spotify' }
-]
 
 function lerMenu() {
   try {
@@ -40,13 +32,19 @@ function avatarHTML() {
     : `<span>${nomeExibicao().charAt(0).toUpperCase()}</span>`
 }
 
-function templateSidebar() {
-  const itens = LINKS.map(
-    (l) => `
+function itensDoMenu() {
+  return linksDoModo(modoAtual())
+    .map(
+      (l) => `
       <a class="nav-item" href="${l.href}" data-nav="${l.id}" title="${l.texto}">
         ${icon(l.icone)}<span class="nav-label">${l.texto}</span>
       </a>`
-  ).join('')
+    )
+    .join('')
+}
+
+function templateSidebar() {
+  const itens = itensDoMenu()
 
   return `
     <aside class="sidebar" id="sidebar" aria-label="Menu principal">
@@ -71,6 +69,13 @@ function templateSidebar() {
 function templateConta() {
   return `
     <div class="account" id="account">
+      <!-- Favoritos no canto superior: botão "Todos" e a segunda barra (preenchidos por favoritos.js; só no modo pessoal) -->
+      <div class="top-favs" id="top-favs" hidden>
+        <a class="top-all" href="favoritos.html" title="Abrir a central de favoritos">
+          ${icon('bookmark')}<span>Todos</span>
+        </a>
+        <nav class="top-shortcuts" id="top-shortcuts" aria-label="Favoritos da barra superior"></nav>
+      </div>
       <button class="avatar-btn" id="avatar-btn" type="button"
         aria-haspopup="dialog" aria-expanded="false" aria-controls="profile-drawer"
         aria-label="Abrir perfil e configurações">
@@ -162,7 +167,7 @@ export function iniciarShell({ pagina }) {
   // Item ativo: página atual + âncora (quando houver)
   function marcarAtivo() {
     const hash = location.hash.replace('#', '')
-    const ativo = hash && LINKS.some((l) => l.id === hash) ? hash : pagina
+    const ativo = hash && linksDoModo(modoAtual()).some((l) => l.id === hash) ? hash : pagina
     app.querySelectorAll('[data-nav]').forEach((a) => {
       const atual = a.dataset.nav === ativo
       a.classList.toggle('active', atual)
@@ -173,15 +178,24 @@ export function iniciarShell({ pagina }) {
   marcarAtivo()
   window.addEventListener('hashchange', marcarAtivo)
 
-  // Avatar do canto superior acompanha nome e foto escolhidos no painel.
+  // Avatar do canto superior acompanha nome e foto escolhidos no painel; o menu acompanha o modo de uso.
+  let modoDesenhado = modoAtual()
   window.addEventListener(EVENTO, () => {
     const face = app.querySelector('.avatar-face')
     if (face) face.innerHTML = avatarHTML()
+    if (modoAtual() !== modoDesenhado) {
+      modoDesenhado = modoAtual()
+      app.querySelector('.sidebar-nav').innerHTML = itensDoMenu()
+      marcarAtivo()
+    }
   })
 
   // Painel lateral direito (perfil e configurações)
   iniciarPerfil(app, { avisar: mostrarAviso })
   aplicarPreferencias()
+
+  // Favoritos: barra superior (todas as páginas) e barra central (página inicial).
+  iniciarBarrasFavoritos()
 
   app.querySelector('#logout-btn')?.addEventListener('click', async (e) => {
     const botao = e.currentTarget

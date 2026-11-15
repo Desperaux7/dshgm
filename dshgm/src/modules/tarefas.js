@@ -1,6 +1,6 @@
 import { icon } from './icons.js'
 import { mostrarAviso } from './shell.js'
-import { statusDoDia, tarefasApi } from '../services/tarefasApi.js'
+import { resumoChecklist, statusDoDia, statusPelaChecklist, tarefasApi } from '../services/tarefasApi.js'
 
 const DIAS_CURTOS = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb']
 const DIAS_LONGOS = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado']
@@ -15,8 +15,10 @@ const MESES = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'O
     dias: [0..6],           // só para recorrentes (0 = domingo)
     criada: 'AAAA-MM-DD',   // recorrentes só aparecem a partir daqui
     concluidas: { 'AAAA-MM-DD': true },  // conclusão controlada dia a dia
-    andamento: { 'AAAA-MM-DD': true }    // dias em que está "em andamento" (nunca junto com concluída)
+    andamento: { 'AAAA-MM-DD': true },   // dias em que está "em andamento" (nunca junto com concluída)
+    checklist: [{ id, texto, feitos: { 'AAAA-MM-DD': true } }]  // itens; o preenchimento também é dia a dia
   }
+  Todos os itens marcados no dia = tarefa concluída naquele dia.
 */
 
 const ROTULOS_STATUS = { pendente: 'Pendente', andamento: 'Em andamento', concluida: 'Concluída' }
@@ -71,6 +73,8 @@ export function iniciarTarefas() {
   const botaoExcluir = dialogo.querySelector('#task-delete-modal')
   const titulo = dialogo.querySelector('#task-dialog-title')
   const subtitulo = dialogo.querySelector('#task-dialog-kicker')
+  const listaItens = dialogo.querySelector('#task-checklist-edit')
+  const botaoNovoItem = dialogo.querySelector('#task-checklist-add')
 
   let tarefas = []
   let carregado = false
@@ -78,8 +82,68 @@ export function iniciarTarefas() {
   let editando = null
   let tipoAtual = 'unica'
   let diaAtual = chaveData()
+  let itensEdicao = [] // checklist em edição no pop-up: [{ id | null, texto }]
+  const recolhidas = new Set() // tarefas com a checklist recolhida na lista
+  let marcacoesPendentes = 0
 
   /* ---------- Pop-up ---------- */
+
+  const MAX_ITENS = 30
+
+  // Os campos de texto são a fonte da verdade enquanto o pop-up está aberto.
+  function lerItensDoFormulario() {
+    return [...listaItens.querySelectorAll('li')].map((li) => ({
+      id: li.dataset.id || null,
+      texto: li.querySelector('input').value.trim()
+    }))
+  }
+
+  function desenharItens(focarUltimo = false) {
+    listaItens.replaceChildren()
+    itensEdicao.forEach((item, indice) => {
+      const li = document.createElement('li')
+      li.dataset.id = item.id ?? ''
+
+      const campo = document.createElement('input')
+      campo.type = 'text'
+      campo.maxLength = 200
+      campo.value = item.texto
+      campo.placeholder = `Item ${indice + 1}`
+      campo.setAttribute('aria-label', `Item ${indice + 1} da checklist`)
+      campo.addEventListener('keydown', (evento) => {
+        if (evento.key !== 'Enter') return
+        evento.preventDefault() // Enter cria o próximo item em vez de enviar o formulário
+        adicionarItem(indice + 1)
+      })
+
+      const remover = document.createElement('button')
+      remover.type = 'button'
+      remover.className = 'icon-btn'
+      remover.innerHTML = icon('x')
+      remover.title = 'Remover item'
+      remover.setAttribute('aria-label', `Remover item ${indice + 1}`)
+      remover.addEventListener('click', () => {
+        itensEdicao = lerItensDoFormulario().filter((_, i) => i !== indice)
+        desenharItens()
+      })
+
+      li.append(campo, remover)
+      listaItens.append(li)
+    })
+    botaoNovoItem.hidden = itensEdicao.length >= MAX_ITENS
+    if (focarUltimo) listaItens.querySelector('li:last-child input')?.focus()
+  }
+
+  function adicionarItem(posicao = itensEdicao.length) {
+    if (itensEdicao.length >= MAX_ITENS) return
+    const atuais = lerItensDoFormulario()
+    atuais.splice(posicao, 0, { id: null, texto: '' })
+    itensEdicao = atuais
+    desenharItens()
+    listaItens.children[posicao]?.querySelector('input')?.focus()
+  }
+
+  botaoNovoItem.addEventListener('click', () => adicionarItem())
 
   DIAS_CURTOS.forEach((curto, indice) => {
     const botao = document.createElement('button')
@@ -128,6 +192,9 @@ export function iniciarTarefas() {
     subtitulo.textContent = tarefa ? 'EDIÇÃO' : 'NOVA TAREFA'
     botaoExcluir.hidden = !tarefa
 
+    itensEdicao = (tarefa?.checklist ?? []).map((i) => ({ id: i.id, texto: i.texto }))
+    desenharItens()
+
     campoNome.value = tarefa?.texto ?? ''
     campoData.value = tarefa?.tipo === 'unica' ? tarefa.data : chaveData()
     marcarDias(tarefa?.tipo === 'recorrente' ? tarefa.dias : [])
@@ -173,7 +240,9 @@ export function iniciarTarefas() {
     const virouRecorrente = editando && editando.tipo !== 'recorrente' && tipoAtual === 'recorrente'
     const criada = !editando || virouRecorrente ? chaveData() : editando.criada
 
-    const corpo = { texto, tipo: tipoAtual, criada }
+    // Itens em branco são descartados; itens existentes mantêm o id (e com ele o preenchimento já feito).
+    const checklist = lerItensDoFormulario().filter((i) => i.texto)
+    const corpo = { texto, tipo: tipoAtual, criada, checklist }
     if (tipoAtual === 'unica') corpo.data = campoData.value
     else corpo.dias = dias
 
@@ -305,6 +374,47 @@ export function iniciarTarefas() {
       }
     }
 
+    // Marca/desmarca um item: a tela muda na hora (inclusive o estado da tarefa) e o servidor confirma.
+    async function marcarItem(tarefa, item, feito) {
+      const dia = diaAtual
+      const anterior = tarefa
+      const total = tarefa.checklist.length
+      const novosFeitos = tarefa.checklist.filter((i) => (i.id === item.id ? feito : i.feitos?.[dia])).length
+      const novoStatus = statusPelaChecklist(statusDoDia(tarefa, dia), total, novosFeitos, { desmarcou: !feito })
+
+      const otimista = {
+        ...tarefa,
+        checklist: tarefa.checklist.map((i) => (i.id === item.id ? { ...i, feitos: { ...i.feitos, [dia]: feito || undefined } } : i)),
+        concluidas: { ...tarefa.concluidas },
+        andamento: { ...tarefa.andamento }
+      }
+      otimista.checklist.forEach((i) => {
+        if (!i.feitos[dia]) delete i.feitos[dia]
+      })
+      delete otimista.concluidas[dia]
+      delete otimista.andamento[dia]
+      if (novoStatus === 'concluida') otimista.concluidas[dia] = true
+      if (novoStatus === 'andamento') otimista.andamento[dia] = true
+
+      tarefas = tarefas.map((t) => (t.id === tarefa.id ? otimista : t))
+      renderizar()
+      marcacoesPendentes++
+      try {
+        const confirmada = await tarefasApi.marcarItem(tarefa.id, item.id, dia, feito)
+        marcacoesPendentes--
+        // Só aplica a resposta do servidor quando não há outras marcações a caminho (evita resposta antiga por cima).
+        if (marcacoesPendentes === 0) {
+          tarefas = tarefas.map((t) => (t.id === confirmada.id ? { ...confirmada, checklist: confirmada.checklist ?? [] } : t))
+          renderizar()
+        }
+      } catch (falha) {
+        marcacoesPendentes--
+        tarefas = tarefas.map((t) => (t.id === tarefa.id ? anterior : t))
+        renderizar()
+        mostrarAviso(mensagemDe(falha))
+      }
+    }
+
     visiveis.forEach((tarefa) => {
       const status = statusDoDia(tarefa, diaAtual)
       const concluida = status === 'concluida'
@@ -352,6 +462,45 @@ export function iniciarTarefas() {
       meta.append(frequencia)
 
       corpo.append(nome, meta)
+
+      // Checklist: itens marcados um a um; o último marcado conclui a tarefa.
+      const { total, feitos } = resumoChecklist(tarefa, diaAtual)
+      if (total) {
+        const aberta = !recolhidas.has(tarefa.id)
+        const alternar = document.createElement('button')
+        alternar.type = 'button'
+        alternar.className = 'task-checklist-toggle'
+        alternar.innerHTML = `${icon('list-checks')}<span>${feitos}/${total} itens</span>${icon(aberta ? 'chevron-up' : 'chevron-down')}`
+        alternar.setAttribute('aria-expanded', String(aberta))
+        alternar.setAttribute('aria-label', `Checklist de ${tarefa.texto}: ${feitos} de ${total} itens`)
+        alternar.addEventListener('click', () => {
+          if (recolhidas.has(tarefa.id)) recolhidas.delete(tarefa.id)
+          else recolhidas.add(tarefa.id)
+          renderizar()
+        })
+        corpo.append(alternar)
+
+        if (aberta) {
+          const itens = document.createElement('ul')
+          itens.className = 'task-checklist'
+          tarefa.checklist.forEach((i) => {
+            const linha = document.createElement('li')
+            const feito = Boolean(i.feitos?.[diaAtual])
+            linha.className = feito ? 'is-done' : ''
+            const rotulo = document.createElement('label')
+            const caixa = document.createElement('input')
+            caixa.type = 'checkbox'
+            caixa.checked = feito
+            caixa.addEventListener('change', () => marcarItem(tarefa, i, caixa.checked))
+            const texto = document.createElement('span')
+            texto.textContent = i.texto
+            rotulo.append(caixa, texto)
+            linha.append(rotulo)
+            itens.append(linha)
+          })
+          corpo.append(itens)
+        }
+      }
 
       const acoes = document.createElement('div')
       acoes.className = 'task-actions'

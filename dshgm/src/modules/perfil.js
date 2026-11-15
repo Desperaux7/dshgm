@@ -3,9 +3,10 @@ import { icon } from './icons.js'
 import { escaparHTML } from '../services/storage.js'
 import { blobParaDataURL, redimensionarImagem } from '../services/imagens.js'
 import {
-  CARTOES,
   DESTAQUES,
   EVENTO,
+  MODOS,
+  cartoesDoModo,
   atualizarPreferencias,
   fotoPerfil,
   lerPreferencias,
@@ -37,21 +38,28 @@ function linhaSwitch(id, texto) {
 function templateDrawer() {
   const cores = DESTAQUES.map(
     (d) => `
-      <button class="swatch" type="button" data-destaque="${d.id}" style="--swatch:${d.cor}"
+      <button class="swatch" type="button" data-destaque="${d.id}" style="--swatch:${d.cor};--swatch2:${d.cor2 ?? d.cor}"
         aria-pressed="false" aria-label="${d.nome}" title="${d.nome}">${icon('check')}</button>`
   ).join('')
 
-  const grupos = [...new Set(CARTOES.map((c) => c.grupo))]
-    .map(
-      (grupo) => `
+  // Cada modo tem a sua lista de cartões (e a sua própria escolha do que mostrar).
+  const gruposDoModo = (modo) => {
+    const cartoes = cartoesDoModo(modo)
+    const prefixo = modo === 'profissional' ? 'cartaoPro' : 'cartao'
+    return [...new Set(cartoes.map((c) => c.grupo))]
+      .map(
+        (grupo) => `
       <div class="switch-group">
         <p class="switch-group-title">${grupo}</p>
-        ${CARTOES.filter((c) => c.grupo === grupo)
-          .map((c) => linhaSwitch(`cartao:${c.id}`, c.nome))
+        ${cartoes
+          .filter((c) => c.grupo === grupo)
+          .map((c) => linhaSwitch(`${prefixo}:${c.id}`, c.nome))
           .join('')}
       </div>`
-    )
-    .join('')
+      )
+      .join('')
+  }
+  const grupos = MODOS.map((m) => `<div data-modo-grupo="${m.id}">${gruposDoModo(m.id)}</div>`).join('')
 
   return `
     <div class="drawer-scrim" id="drawer-scrim"></div>
@@ -71,6 +79,12 @@ function templateDrawer() {
           <p class="drawer-note" id="conta-email"></p>
           <button class="btn btn-sm" id="conta-sair" type="button">Sair da conta</button>
           <p class="drawer-note" id="conta-nota" role="status"></p>
+        </section>
+
+        <section class="drawer-section" aria-labelledby="sec-modo">
+          <h3 id="sec-modo">Modo de uso</h3>
+          ${segmentado('Modo', MODOS.map((m) => ({ valor: m.id, texto: m.nome })))}
+          <p class="drawer-note" id="modo-nota">O menu lateral e a página inicial mostram só os módulos do modo escolhido.</p>
         </section>
 
         <section class="drawer-section" aria-labelledby="sec-perfil">
@@ -150,7 +164,7 @@ function templateDrawer() {
 
         <section class="drawer-section" aria-labelledby="sec-cartoes">
           <h3 id="sec-cartoes">Página inicial</h3>
-          <p class="drawer-note">Escolha o que aparece na página inicial.</p>
+          <p class="drawer-note" id="cartoes-nota">Escolha o que aparece na página inicial.</p>
           ${grupos}
         </section>
       </div>
@@ -304,6 +318,7 @@ export function iniciarPerfil(app, { avisar }) {
   )
 
   const aoEscolher = {
+    Modo: (v) => ({ modo: v }),
     Fundo: (v) => ({ fundo: v }),
     Densidade: (v) => ({ densidade: v }),
     Hora: (v) => ({ hora24: v === '24' }),
@@ -321,7 +336,13 @@ export function iniciarPerfil(app, { avisar }) {
   drawer.querySelectorAll('[data-switch]').forEach((chave) =>
     chave.addEventListener('change', () => {
       const [tipo, id] = chave.dataset.switch.split(':')
-      atualizarPreferencias(tipo === 'cartao' ? { cartoes: { [id]: chave.checked } } : { clima: { [id]: chave.checked } })
+      atualizarPreferencias(
+        tipo === 'cartao'
+          ? { cartoes: { [id]: chave.checked } }
+          : tipo === 'cartaoPro'
+            ? { cartoesPro: { [id]: chave.checked } }
+            : { clima: { [id]: chave.checked } }
+      )
     })
   )
 
@@ -389,6 +410,7 @@ export function iniciarPerfil(app, { avisar }) {
     drawer.querySelectorAll('[data-destaque]').forEach((b) =>
       b.setAttribute('aria-pressed', String(b.dataset.destaque === p.destaque))
     )
+    marcar('Modo', p.modo)
     marcar('Fundo', p.fundo)
     marcar('Densidade', p.densidade)
     marcar('Hora', p.hora24 ? '24' : '12')
@@ -397,7 +419,12 @@ export function iniciarPerfil(app, { avisar }) {
 
     drawer.querySelectorAll('[data-switch]').forEach((chave) => {
       const [tipo, id] = chave.dataset.switch.split(':')
-      chave.checked = tipo === 'cartao' ? p.cartoes[id] !== false : Boolean(p.clima[id])
+      chave.checked =
+        tipo === 'cartao' ? p.cartoes[id] !== false : tipo === 'cartaoPro' ? p.cartoesPro[id] !== false : Boolean(p.clima[id])
+    })
+    // Só a lista de cartões do modo atual fica visível.
+    drawer.querySelectorAll('[data-modo-grupo]').forEach((g) => {
+      g.hidden = g.dataset.modoGrupo !== p.modo
     })
 
     notaCidade.textContent = p.clima.cidade

@@ -815,7 +815,7 @@
   width: 4px;
   height: 8px;
   content: '';
-  border: solid #03201d;
+  border: solid var(--on-accent);
   border-width: 0 2px 2px 0;
   transform: rotate(45deg);
 }
@@ -888,7 +888,7 @@
   place-items: center;
   overflow: hidden;
   color: var(--mint);
-  background: linear-gradient(145deg, rgba(31, 122, 118, 0.55), rgba(8, 28, 32, 0.9));
+  background: linear-gradient(145deg, rgba(var(--aur-1), 0.42), rgba(var(--popover-rgb), 0.92));
   border: 1px solid rgba(52, 211, 153, 0.2);
   border-radius: 14px;
 }
@@ -1003,12 +1003,12 @@
 .spotify-controls button:nth-child(2) {
   width: 48px;
   height: 48px;
-  color: #03201d;
+  color: var(--on-accent);
   background: linear-gradient(135deg, var(--mint), var(--cyan));
 }
 
 .spotify-controls button:nth-child(2):hover {
-  color: #03201d;
+  color: var(--on-accent);
   transform: scale(1.06);
   box-shadow: 0 6px 22px rgba(52, 211, 153, 0.3);
 }
@@ -1080,3 +1080,103 @@
 }
 
 
+
+/* Checklist dentro da tarefa */
+
+.task-checklist-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  justify-self: start;
+  padding: 3px 8px 3px 6px;
+  color: var(--muted);
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  font-size: 11px;
+  transition: color 0.2s, border-color 0.2s;
+}
+
+.task-checklist-toggle:hover {
+  color: var(--text);
+  border-color: var(--line-strong);
+}
+
+.task-checklist-toggle .icon {
+  width: 12px;
+  height: 12px;
+}
+
+.task-checklist {
+  display: grid;
+  gap: 2px;
+  margin: 4px 0 2px;
+  padding: 0;
+  list-style: none;
+}
+
+.task-checklist label {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  padding: 4px 4px;
+  color: var(--muted);
+  border-radius: 8px;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.task-checklist label:hover {
+  color: var(--text);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.task-checklist input {
+  flex-shrink: 0;
+  margin-top: 2px;
+  accent-color: var(--cyan);
+}
+
+.task-checklist span {
+  overflow-wrap: anywhere;
+}
+
+.task-checklist .is-done span {
+  color: var(--faint);
+  text-decoration: line-through;
+}
+
+/* Edição da checklist no pop-up de tarefa */
+
+.checklist-edit {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.checklist-edit:empty {
+  display: none;
+}
+
+.checklist-edit li {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.checklist-edit input {
+  flex: 1;
+  min-width: 0;
+}
+
+.checklist-edit .icon-btn {
+  flex-shrink: 0;
+  width: 32px;
+  height: 32px;
+}
+
+#task-checklist-add {
+  justify-self: start;
+}

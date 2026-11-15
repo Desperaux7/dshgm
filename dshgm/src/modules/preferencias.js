@@ -1,6 +1,9 @@
 import { perfil } from '../config.js'
 import { lerJSON, salvarJSON } from '../services/storage.js'
 import { api } from '../services/api.js'
+import { MODOS, cartaoVisivel as cartaoVisivelEm, cartoesDoModo, padraoCartoes } from './modos.js'
+
+export { MODOS, cartoesDoModo }
 
 const CHAVE = 'dashboard-preferencias'
 const CHAVE_PENDENTE = 'dashboard-preferencias-pendente'
@@ -11,21 +14,16 @@ export const DESTAQUES = [
   { id: 'ciano', nome: 'Ciano', cor: '#5eead4' },
   { id: 'oceano', nome: 'Oceano', cor: '#38bdf8' },
   { id: 'menta', nome: 'Menta', cor: '#34d399' },
-  { id: 'ambar', nome: 'Âmbar', cor: '#fbbf24' }
-]
-
-// Cartões da página inicial que podem ser exibidos ou ocultados.
-export const CARTOES = [
-  { id: 'resumo-tarefas', grupo: 'Indicadores', nome: 'Tarefas pendentes' },
-  { id: 'resumo-agenda', grupo: 'Indicadores', nome: 'Próximo compromisso' },
-  { id: 'resumo-saldo', grupo: 'Indicadores', nome: 'Saldo do mês' },
-  { id: 'painel-agenda', grupo: 'Painéis', nome: 'Agenda' },
-  { id: 'painel-tarefas', grupo: 'Painéis', nome: 'Tarefas do dia' },
-  { id: 'painel-spotify', grupo: 'Painéis', nome: 'Spotify' },
-  { id: 'atalhos', grupo: 'Início', nome: 'Atalhos de favoritos' }
+  { id: 'ambar', nome: 'Âmbar', cor: '#fbbf24' },
+  // Temas de duas cores (a segunda aparece na bolinha de escolha).
+  { id: 'vermelho', nome: 'Vermelho e preto', cor: '#ef4444', cor2: '#0a0405' },
+  { id: 'dourado', nome: 'Dourado e preto', cor: '#d4af37', cor2: '#0a0805' },
+  { id: 'monocromo', nome: 'Preto e branco', cor: '#f5f5f5', cor2: '#050505' },
+  { id: 'sakura', nome: 'Sakura (rosa)', cor: '#f9a8c9', cor2: '#fde2ee' }
 ]
 
 export const PADRAO = {
+  modo: 'pessoal', // pessoal | profissional
   nome: '',
   foto: null,
   destaque: 'ciano',
@@ -34,7 +32,8 @@ export const PADRAO = {
   hora24: true,
   inicioSemana: 0, // 0 = domingo, 1 = segunda
   clima: { ativo: true, unidade: 'C', cidade: null }, // cidade: { nome, lat, lon } ou null (localização do navegador)
-  cartoes: Object.fromEntries(CARTOES.map((c) => [c.id, true]))
+  cartoes: padraoCartoes('pessoal'),
+  cartoesPro: padraoCartoes('profissional')
 }
 
 function mesclar(salvas) {
@@ -43,9 +42,15 @@ function mesclar(salvas) {
     ...PADRAO,
     ...s,
     clima: { ...PADRAO.clima, ...(s.clima ?? {}) },
-    cartoes: { ...PADRAO.cartoes, ...(s.cartoes ?? {}) }
+    modo: MODOS.some((m) => m.id === s.modo) ? s.modo : PADRAO.modo,
+    cartoes: { ...PADRAO.cartoes, ...(s.cartoes ?? {}) },
+    cartoesPro: { ...PADRAO.cartoesPro, ...(s.cartoesPro ?? {}) }
   }
 }
+
+export const modoAtual = () => atuais.modo
+
+export const cartaoVisivel = (id, prefs = atuais) => cartaoVisivelEm(id, prefs)
 
 let atuais = mesclar(lerJSON(CHAVE, null))
 let versaoLocal = 0 // muda a cada alteração feita pelo usuário (evita que uma resposta atrasada do servidor a desfaça)
@@ -91,9 +96,10 @@ export function aplicarPreferencias(prefs = atuais) {
   raiz.dataset.accent = prefs.destaque
   raiz.dataset.aurora = { animado: 'animada', estatico: 'estatica', desligado: 'desligada' }[prefs.fundo] ?? 'animada'
   raiz.dataset.densidade = prefs.densidade
+  raiz.dataset.modo = prefs.modo
 
   document.querySelectorAll('[data-card]').forEach((el) => {
-    el.hidden = prefs.cartoes[el.dataset.card] === false
+    el.hidden = !cartaoVisivel(el.dataset.card, prefs)
   })
 }
 
@@ -105,7 +111,8 @@ export function atualizarPreferencias(parcial) {
     ...atuais,
     ...parcial,
     clima: { ...atuais.clima, ...(parcial.clima ?? {}) },
-    cartoes: { ...atuais.cartoes, ...(parcial.cartoes ?? {}) }
+    cartoes: { ...atuais.cartoes, ...(parcial.cartoes ?? {}) },
+    cartoesPro: { ...atuais.cartoesPro, ...(parcial.cartoesPro ?? {}) }
   })
 
   const salvou = salvarJSON(CHAVE, proximas)
@@ -140,7 +147,8 @@ function juntar(base, novo) {
     ...base,
     ...novo,
     ...(novo.clima || base.clima ? { clima: { ...(base.clima ?? {}), ...(novo.clima ?? {}) } } : {}),
-    ...(novo.cartoes || base.cartoes ? { cartoes: { ...(base.cartoes ?? {}), ...(novo.cartoes ?? {}) } } : {})
+    ...(novo.cartoes || base.cartoes ? { cartoes: { ...(base.cartoes ?? {}), ...(novo.cartoes ?? {}) } } : {}),
+    ...(novo.cartoesPro || base.cartoesPro ? { cartoesPro: { ...(base.cartoesPro ?? {}), ...(novo.cartoesPro ?? {}) } } : {})
   }
 }
 
