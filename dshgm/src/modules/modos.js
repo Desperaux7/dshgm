@@ -13,7 +13,7 @@ export const LINKS = [
   { id: 'inicio', href: 'index.html', icone: 'home', texto: 'Início', modos: AMBOS },
   { id: 'tarefas', href: 'index.html#tarefas', icone: 'tasks', texto: 'Tarefas', modos: AMBOS },
   { id: 'agenda', href: 'agenda.html', icone: 'calendar', texto: 'Agenda', modos: AMBOS },
-  { id: 'favoritos', href: 'favoritos.html', icone: 'bookmark', texto: 'Favoritos', modos: ['AMBOS'] },
+    { id: 'favoritos', href: 'favoritos.html', icone: 'bookmark', texto: 'Favoritos', modos: AMBOS },
   { id: 'lazer', href: 'lazer.html', icone: 'gamepad', texto: 'Lazer', modos: ['pessoal'] },
   { id: 'desejos', href: 'desejos.html', icone: 'gift', texto: 'Lista de Desejos', modos: ['pessoal'] },
   { id: 'times', href: 'times.html', icone: 'users', texto: 'Times', modos: ['profissional'] },
@@ -33,7 +33,7 @@ export const CARTOES = [
   { id: 'painel-tarefas', grupo: 'Painéis', nome: 'Tarefas do dia', modos: AMBOS },
   { id: 'painel-times', grupo: 'Painéis', nome: 'Times', modos: ['profissional'] },
   { id: 'painel-spotify', grupo: 'Painéis', nome: 'Spotify', modos: ['pessoal'] },
-  { id: 'atalhos', grupo: 'Início', nome: 'Atalhos de favoritos', modos: ['AMBOS'] }
+  { id: 'atalhos', grupo: 'Início', nome: 'Atalhos de favoritos', modos: AMBOS }
 ]
 
 export const cartoesDoModo = (modo) => CARTOES.filter((c) => c.modos.includes(modo))
