@@ -372,7 +372,7 @@ export function iniciarBarrasFavoritos() {
   let carregado = false
   let carregando = false
 
-  const noModoPessoal = () => document.documentElement.dataset.modo !== 'profissional'
+ const noModoPessoal = () => true
 
   function renderizar() {
     fecharCaixaPasta()
